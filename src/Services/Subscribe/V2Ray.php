@@ -36,24 +36,48 @@ final class V2Ray extends Base
                     $node_custom_config['host'] ?? '';
                 $path = $node_custom_config['header']['request']['path'][0] ?? $node_custom_config['path'] ?? '/';
 
-                $v2rayn_array = [
-                    'v' => '2',
-                    'ps' => $node_raw->name,
-                    'add' => $node_raw->server,
-                    'port' => $v2_port,
-                    'id' => $user->uuid,
-                    'aid' => 0,
-                    'net' => $network,
-                    'type' => $header_type,
-                    'host' => $host,
-                    'path' => $path,
-                    'tls' => $security,
-                ];
+                //add
+                if (($node_custom_config['enable_vless'] ?? '0') === '1') {
+                    $client_fingerprint = $node_custom_config['client_fingerprint'] ?? '';
+                    $fingerprint = $node_custom_config['fingerprint'] ?? '';
+                    $flow = $node_custom_config['flow'] ?? '';
 
-                $links .= 'vmess://' . base64_encode(json_encode($v2rayn_array)) . PHP_EOL;
+
+                    $links .= 'vless://' . $user->uuid . '@' .
+                        $node_raw->server . ':' . $v2_port .
+                        '?encryption=none' .
+                        '&flow=' . $flow .
+                        '&security=' . $security .
+                        '&sni=' . $host .
+                        '&fp=' . $fingerprint .
+                        '&pbk=' . $client_fingerprint .
+                        '&sid=' . $user->id .
+                        '&type=' . $network .
+                        '&headerType=' . $header_type .
+                        '#' . $node_raw->name . PHP_EOL;
+                } else {
+                    $v2rayn_array = [
+                        'v' => '2',
+                        'ps' => $node_raw->name,
+                        'add' => $node_raw->server,
+                        'port' => $v2_port,
+                        'id' => $user->uuid,
+                        'aid' => 0,
+                        'net' => $network,
+                        'type' => $header_type,
+                        'host' => $host,
+                        'path' => $path,
+                        'tls' => $security,
+                    ];
+    
+                    $links .=  'vmess://' . base64_encode(json_encode($v2rayn_array)) . PHP_EOL;
+                }
             }
         }
 
         return $links;
     }
 }
+
+//   vless://81905a5f-30bf-48ce-b2e3-1bfc58c80dba@80.251.208.72:31233?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.smzdm.com&fp=chrome&pbk=Tkn--526y7NXdw92jR_MuZDN8YXWuDGsEk0LboKKWSM&sid=22&type=tcp&headerType=none#tttt
+
