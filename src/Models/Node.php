@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Utils\Tools;
 use Exception;
 use Illuminate\Database\Query\Builder;
-use function array_key_exists;
-use function count;
 use function dns_get_record;
 use function time;
 use const DNS_A;
@@ -19,9 +18,6 @@ use const DNS_AAAA;
  * @property int    $type                    节点显示
  * @property string $server                  节点地址
  * @property string $custom_config           自定义配置
- * todo: delete these two properties
- * @property string $info                    节点信息
- * @property string $status                  节点状态
  * @property int    $sort                    节点类型
  * @property float  $traffic_rate            流量倍率
  * @property int    $is_dynamic_rate         是否启用动态流量倍率
@@ -86,6 +82,11 @@ final class Node extends Model
         };
     }
 
+    public function isDynamicRate(): string
+    {
+        return $this->is_dynamic_rate ? '是' : '否';
+    }
+
     /**
      * 获取节点在线状态
      *
@@ -99,28 +100,17 @@ final class Node extends Model
     /**
      * 更新节点 IP
      */
-    public function changeNodeIp(string $server_name): void
+    public function updateNodeIp(): void
     {
-        try {
-            $result = dns_get_record($server_name, DNS_A + DNS_AAAA);
-        } catch (Exception $e) {
-            $result = false;
-        }
-
-        $dns = [];
-
-        if ($result !== false && count($result) > 0) {
-            $dns = $result[0];
-        }
-
-        if (array_key_exists('ip', $dns)) {
-            $ip = $dns['ip'];
-        } elseif (array_key_exists('ipv6', $dns)) {
-            $ip = $dns['ipv6'];
+        if (Tools::isIPv4($this->server) || Tools::isIPv6($this->server)) {
+            $this->node_ip = $this->server;
         } else {
-            $ip = $server_name;
+            try {
+                $result = dns_get_record($this->server, DNS_A + DNS_AAAA);
+                $this->node_ip = $result[0]['ip'] ?? $result[0]['ipv6'] ?? $this->server;
+            } catch (Exception $e) {
+                $this->node_ip = $this->server;
+            }
         }
-
-        $this->node_ip = $ip;
     }
 }

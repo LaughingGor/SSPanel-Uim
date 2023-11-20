@@ -50,7 +50,7 @@
                             <div class="form-group mb-3 row">
                                 <label class="form-label col-3 col-form-label">服务器IP</label>
                                 <div class="col">
-                                    <input id="node_ip" type="text" class="form-control" value="{$node->node_ip}">
+                                    <input id="node_ip" type="text" class="form-control" value="{$node->node_ip}" disabled>
                                 </div>
                             </div>
                             <div class="form-group mb-3 row">
@@ -76,17 +76,20 @@
                                 <label class="form-label col-3 col-form-label">自定义配置</label>
                                 <div id="custom_config"></div>
                                 <label class="form-label col-form-label">
-                                    请参考 <a href="//wiki.sspanel.org/#/custom-config" target="_blank">wiki.sspanel.org/#/custom-config</a>
+                                    请参考
+                                    <a href="//wiki.sspanel.org/#/custom-config" target="_blank">
+                                        wiki.sspanel.org/#/custom-config
+                                    </a>
                                     修改节点自定义配置
                                 </label>
                             </div>
                             <div class="form-group mb-3 row">
-                                  <span class="col">显示此节点</span>
-                                  <span class="col-auto">
-                                      <label class="form-check form-check-single form-switch">
-                                          <input id="type" class="form-check-input" type="checkbox" {if $node->type}checked="" {/if}>
-                                      </label>
-                                  </span>
+                                <span class="col">显示此节点</span>
+                                <span class="col-auto">
+                                    <label class="form-check form-check-single form-switch">
+                                        <input id="type" class="form-check-input" type="checkbox" {if $node->type}checked="" {/if}>
+                                    </label>
+                                </span>
                             </div>
                             <div class="hr-text">
                                 <span>动态倍率</span>
@@ -94,10 +97,10 @@
                             <div class="form-group mb-3 row">
                                 <span class="col">启用动态流量倍率</span>
                                 <span class="col-auto">
-                                      <label class="form-check form-check-single form-switch">
-                                          <input id="is_dynamic_rate" class="form-check-input" type="checkbox" {if $node->is_dynamic_rate}checked="" {/if}>
-                                      </label>
-                                  </span>
+                                    <label class="form-check form-check-single form-switch">
+                                        <input id="is_dynamic_rate" class="form-check-input" type="checkbox" {if $node->is_dynamic_rate}checked="" {/if}>
+                                    </label>
+                                </span>
                             </div>
                             <div class="form-group mb-3 row">
                                 <label class="form-label col-3 col-form-label">最大倍率</label>
@@ -135,12 +138,6 @@
                             <h3 class="card-title">其他信息</h3>
                         </div>
                         <div class="card-body">
-                            <div class="form-group mb-3 row">
-                                <label class="form-label col-3 col-form-label">备注</label>
-                                <div class="col">
-                                    <input id="info" type="text" class="form-control" value="{$node->info}">
-                                </div>
-                            </div>
                             <div class="form-group mb-3 row">
                                 <label class="form-label col-3 col-form-label">等级</label>
                                 <div class="col">
