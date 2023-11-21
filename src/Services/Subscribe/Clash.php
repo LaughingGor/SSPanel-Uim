@@ -95,6 +95,7 @@ final class Clash extends Base
                         $node_custom_config['host'] ?? '';
                     $allow_insecure = $node_custom_config['allow_insecure'] ?? false;
                     $tls = $security === 'tls';
+                    $relay_server = $node_custom_config['relay_server'];
                     // Clash 特定配置
                     $udp = $node_custom_config['udp'] ?? true;
                     $ws_opts = $node_custom_config['ws-opts'] ?? $node_custom_config['ws_opts'] ?? null;
@@ -106,24 +107,58 @@ final class Clash extends Base
                         $network = 'ws';
                     }
 
-                    $node = [
-                        'name' => $node_raw->name,
-                        'type' => 'vmess',
-                        'server' => $node_raw->server,
-                        'port' => (int) $v2_port,
-                        'uuid' => $user->uuid,
-                        'alterId' => 0,
-                        'cipher' => $encryption,
-                        'udp' => (bool) $udp,
-                        'tls' => $tls,
-                        'skip-cert-verify' => (bool) $allow_insecure,
-                        'servername' => $host,
-                        'network' => $network,
-                        'ws-opts' => $ws_opts,
-                        'h2-opts' => $h2_opts,
-                        'http-opts' => $http_opts,
-                        'grpc-opts' => $grpc_opts,
-                    ];
+                    if (($node_custom_config['enable_vless'] ?? '0') === '1') {
+                        $enable_reality = $node_custom_config['enable_reality'];
+                        if ($enable_reality) {
+                            $client_fingerprint = $node_custom_config['client_fingerprint'] ?? '';
+                            $public_key = $node_custom_config['public_key'] ?? '';
+                            $flow = $node_custom_config['flow'] ?? '';
+                            $reality_shortid = $node_custom_config['reality_shortid'] ?? '';
+                            $reality_opts = [
+                                'public-key' => $public_key,
+                                'short-id' => $reality_shortid,
+                            ];
+                            $node = [
+                                'name' => $node_raw->name,
+                                'type' => 'vless',
+                                'server' => ($relay_server ?? $node_raw->server),
+                                'port' => (int) $v2_port,
+                                'uuid' => $user->uuid,
+                                'udp' => (bool) $udp,
+                                'tls' => true,
+                                'flow' => $flow,
+                                'client-fingerprint' => $client_fingerprint,
+                                'skip-cert-verify' => (bool) $allow_insecure,
+                                'servername' => $host,
+                                'network' => $network,
+                                'ws-opts' => $ws_opts,
+                                'h2-opts' => $h2_opts,
+                                'http-opts' => $http_opts,
+                                'grpc-opts' => $grpc_opts,
+                                'reality-opts' => $reality_opts,
+                            ];
+                        }
+                    } else {
+                        $node = [
+                            'name' => $node_raw->name,
+                            'type' => 'vmess',
+                            'server' => ($relay_server ?? $node_raw->server),
+                            'port' => (int) $v2_port,
+                            'uuid' => $user->uuid,
+                            'alterId' => 0,
+                            'cipher' => $encryption,
+                            'udp' => (bool) $udp,
+                            'tls' => $tls,
+                            'skip-cert-verify' => (bool) $allow_insecure,
+                            'servername' => $host,
+                            'network' => $network,
+                            'ws-opts' => $ws_opts,
+                            'h2-opts' => $h2_opts,
+                            'http-opts' => $http_opts,
+                            'grpc-opts' => $grpc_opts,
+                        ];
+                    }
+                    
 
                     break;
                 case 14:

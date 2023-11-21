@@ -36,30 +36,33 @@ final class V2Ray extends Base
                     $node_custom_config['host'] ?? '';
                 $path = $node_custom_config['header']['request']['path'][0] ?? $node_custom_config['path'] ?? '/';
 
+                $relay_server = $node_custom_config['relay_server'];
                 //add
                 if (($node_custom_config['enable_vless'] ?? '0') === '1') {
-                    $client_fingerprint = $node_custom_config['client_fingerprint'] ?? '';
-                    $fingerprint = $node_custom_config['fingerprint'] ?? '';
-                    $flow = $node_custom_config['flow'] ?? '';
-
-
-                    $links .= 'vless://' . $user->uuid . '@' .
-                        $node_raw->server . ':' . $v2_port .
-                        '?encryption=none' .
-                        '&flow=' . $flow .
-                        '&security=' . $security .
-                        '&sni=' . $host .
-                        '&fp=' . $fingerprint .
-                        '&pbk=' . $client_fingerprint .
-                        '&sid=' . $user->id .
-                        '&type=' . $network .
-                        '&headerType=' . $header_type .
-                        '#' . $node_raw->name . PHP_EOL;
+                    $enable_reality = $node_custom_config['enable_reality'];
+                    if ($enable_reality) {
+                        $client_fingerprint = $node_custom_config['client_fingerprint'] ?? '';
+                        $public_key = $node_custom_config['public_key'] ?? '';
+                        $flow = $node_custom_config['flow'] ?? '';
+                        $reality_shortid = $node_custom_config['reality_shortid'] ?? '';
+                        $links .= 'vless://' . $user->uuid . '@' .
+                            ($relay_server ?? $node_raw->server) . ':' . $v2_port .
+                            '?encryption=none' .
+                            '&flow=' . $flow .
+                            '&security=' . $security .
+                            '&sni=' . $host .
+                            '&fp=' . $client_fingerprint .
+                            '&pbk=' . $public_key .
+                            '&sid=' . $reality_shortid .
+                            '&type=' . $network .
+                            '&headerType=' . $header_type .
+                            '#' . $node_raw->name . PHP_EOL;
+                    }   
                 } else {
                     $v2rayn_array = [
                         'v' => '2',
                         'ps' => $node_raw->name,
-                        'add' => $node_raw->server,
+                        'add' => ($relay_server ?? $node_raw->server),
                         'port' => $v2_port,
                         'id' => $user->uuid,
                         'aid' => 0,
