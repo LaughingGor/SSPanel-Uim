@@ -48,9 +48,15 @@
                                 </div>
                             </div>
                             <div class="form-group mb-3 row">
-                                <label class="form-label col-3 col-form-label">服务器IP</label>
+                                <label class="form-label col-3 col-form-label">IPv4地址</label>
                                 <div class="col">
-                                    <input id="node_ip" type="text" class="form-control" value="{$node->node_ip}" disabled>
+                                    <input type="text" class="form-control" value="{$node->ipv4}" disabled>
+                                </div>
+                            </div>
+                            <div class="form-group mb-3 row">
+                                <label class="form-label col-3 col-form-label">IPv6地址</label>
+                                <div class="col">
+                                    <input type="text" class="form-control" value="{$node->ipv6}" disabled>
                                 </div>
                             </div>
                             <div class="form-group mb-3 row">
@@ -101,6 +107,15 @@
                                         <input id="is_dynamic_rate" class="form-check-input" type="checkbox" {if $node->is_dynamic_rate}checked="" {/if}>
                                     </label>
                                 </span>
+                            </div>
+                            <div class="form-group mb-3 row">
+                                <label class="form-label col-3 col-form-label">动态流量倍率计算方式</label>
+                                <div class="col">
+                                    <select id="dynamic_rate_type" class="col form-select" value="{$node->dynamic_rate_type}">
+                                        <option value="0" {if $node->dynamic_rate_type === 0}selected{/if}>Logistic</option>
+                                        <option value="1" {if $node->dynamic_rate_type === 1}selected{/if}>Linear</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="form-group mb-3 row">
                                 <label class="form-label col-3 col-form-label">最大倍率</label>
@@ -154,10 +169,13 @@
                                 <span>流量设置</span>
                             </div>
                             <div class="form-group mb-3 row">
-                                <label class="form-label col-3 col-form-label">已用流量 (GB)</label>
+                                <label class="form-label col-3 col-form-label">已用流量</label>
                                 <div class="col">
                                     <input id="node_bandwidth" type="text" class="form-control"
                                            value="{$node->node_bandwidth}" disabled="">
+                                </div>
+                                <div class="col-auto">
+                                    <button id="reset-bandwidth" class="btn btn-red">重置</button>
                                 </div>
                             </div>
                             <div class="form-group mb-3 row">
@@ -190,7 +208,7 @@
                                        disabled="">
                                 <div class="row my-3">
                                     <div class="col">
-                                        <button id="reset-node-password" class="btn btn-red">重置</button>
+                                        <button id="reset-password" class="btn btn-red">重置</button>
                                         <button id="copy-password" class="copy btn btn-primary"
                                                 data-clipboard-text="{$node->password}">
                                             复制
@@ -198,7 +216,7 @@
                                     </div>
                                 </div>
                                 <label class="form-label col-form-label">
-                                    通讯密钥用于 WebAPI 节点模式鉴权，如需更改请点击重置
+                                    通讯密钥用于 NodeAPI 鉴权，如需更改请点击重置
                                 </label>
                             </div>
                         </div>
@@ -210,22 +228,39 @@
 </div>
 
 <script>
-    var clipboard = new ClipboardJS('.copy');
+    let clipboard = new ClipboardJS('.copy');
     clipboard.on('success', function (e) {
         $('#success-noreload-message').text('已复制到剪切板');
         $('#success-noreload-dialog').modal('show');
     });
 
     const container = document.getElementById('custom_config');
-    var options = {
+    let options = {
         modes: ['code', 'tree'],
     };
     const editor = new JSONEditor(container, options);
     editor.set({$node->custom_config})
 
-    $("#reset-node-password").click(function () {
+    $("#reset-bandwidth").click(function () {
         $.ajax({
-            url: '/admin/node/{$node->id}/reset',
+            url: '/admin/node/{$node->id}/reset_bandwidth',
+            type: 'POST',
+            dataType: "json",
+            success: function (data) {
+                if (data.ret === 1) {
+                    $('#success-message').text(data.msg);
+                    $('#success-dialog').modal('show');
+                } else {
+                    $('#fail-message').text(data.msg);
+                    $('#fail-dialog').modal('show');
+                }
+            }
+        })
+    });
+
+    $("#reset-password").click(function () {
+        $.ajax({
+            url: '/admin/node/{$node->id}/reset_password',
             type: 'POST',
             dataType: "json",
             success: function (data) {

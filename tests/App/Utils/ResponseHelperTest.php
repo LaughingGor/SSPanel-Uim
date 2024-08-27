@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Utils;
 
+use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
 use GuzzleHttp\Psr7\HttpFactory;
 use Slim\Http\Factory\DecoratedResponseFactory;
@@ -83,6 +84,7 @@ class ResponseHelperTest extends TestCase
 
     /**
      * @covers App\Utils\ResponseHelper::successWithDataEtag
+     * @throws Exception
      */
     public function testSuccessWithDataEtag()
     {
@@ -97,7 +99,7 @@ class ResponseHelperTest extends TestCase
         $result = ResponseHelper::successWithDataEtag($request, $response, $data);
 
         $this->assertEquals(200, $result->getStatusCode());
-        $this->assertEquals('{"foo":"bar"}', (string) $result->getBody());
+        $this->assertEquals('{"ret":1,"data":{"foo":"bar"}}', (string) $result->getBody());
         $this->assertEquals('W/"e929f5f04818d7ec"', $result->getHeaderLine('ETag'));
     }
 }

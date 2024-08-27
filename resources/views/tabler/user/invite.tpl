@@ -1,7 +1,5 @@
 {include file='user/header.tpl'}
 
-<script src="//{$config['jsdelivr_url']}/npm/clipboard@latest/dist/clipboard.min.js"></script>
-
 <div class="page-wrapper">
     <div class="container-xl">
         <div class="page-header d-print-none text-white">
@@ -27,8 +25,7 @@
                                 <div class="card-body">
                                     <h3 class="card-title">邀请规则</h3>
                                     <ul>
-                                        <li>邀请注册的用户在账单确认后，你可获得其账单金额的 <code>{$rebate_ratio_per}
-                                                %</code>
+                                        <li>邀请注册的用户在账单确认后，你可获得其账单金额的 <code>{$invite_reward_rate}%</code>
                                             作为返利
                                         </li>
                                         <li>部分商品的返利比例可能不遵循上面的比例</li>
@@ -41,12 +38,12 @@
                             <div class="card">
                                 <div class="card-body">
                                     <h3 class="card-title">邀请链接</h3>
-                                    <input class="form-control" id="invite-url" value="{$invite_url}" disabled/>
+                                    <input class="form-control" id="invite-url" value="{$invite_url}" disabled>
                                 </div>
                                 <div class="card-footer">
                                     <div class="d-flex">
-                                        <button id="reset-url" class="btn text-red btn-link"
-                                                hx-post="/user/invite_reset" hx-swap="none">
+                                        <button class="btn text-red btn-link"
+                                                hx-post="/user/invite/reset" hx-swap="none">
                                             重置
                                         </button>
                                         <button data-clipboard-text="{$invite_url}"
@@ -91,13 +88,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        let clipboard = new ClipboardJS('.copy');
-        clipboard.on('success', function (e) {
-            $('#success-message').text('已复制到剪切板');
-            $('#success-dialog').modal('show');
-        });
-    </script>
 
     {include file='user/footer.tpl'}

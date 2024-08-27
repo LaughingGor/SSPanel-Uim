@@ -8,6 +8,7 @@ use App\Models\Ann;
 use App\Models\Config;
 use App\Models\DetectLog;
 use App\Models\EmailQueue;
+use App\Models\HourlyUsage;
 use App\Models\Invoice;
 use App\Models\Node;
 use App\Models\OnlineLog;
@@ -15,7 +16,6 @@ use App\Models\Order;
 use App\Models\Paylist;
 use App\Models\SubscribeLog;
 use App\Models\User;
-use App\Models\UserHourlyUsage;
 use App\Services\IM\Telegram;
 use App\Utils\Tools;
 use DateTime;
@@ -34,42 +34,21 @@ use const PHP_EOL;
 
 final class Cron
 {
-    public static function addTrafficLog(): void
-    {
-        $users = User::all();
-
-        foreach ($users as $user) {
-            $transfer_total = $user->transfer_total;
-            $transfer_total_last = UserHourlyUsage::where('user_id', $user->id)->orderBy('id', 'desc')->first();
-
-            if ($transfer_total_last === null) {
-                $transfer_total_last = 0;
-            } else {
-                $transfer_total_last = $transfer_total_last->traffic;
-            }
-
-            $trafficlog = new UserHourlyUsage();
-            $trafficlog->user_id = $user->id;
-            $trafficlog->traffic = $transfer_total;
-            $trafficlog->hourly_usage = $transfer_total - $transfer_total_last;
-            $trafficlog->datetime = time();
-            $trafficlog->save();
-        }
-
-        echo Tools::toDateTime(time()) . ' 流量记录处理完成' . PHP_EOL;
-    }
-
     public static function cleanDb(): void
     {
-        SubscribeLog::where(
+        (new SubscribeLog())->where(
             'request_time',
             '<',
             time() - 86400 * Config::obtain('subscribe_log_retention_days')
         )->delete();
-        UserHourlyUsage::where('datetime', '<', time() - 86400 * Config::obtain('traffic_log_retention_days'))->delete();
-        DetectLog::where('datetime', '<', time() - 86400 * 3)->delete();
-        EmailQueue::where('time', '<', time() - 86400)->delete();
-        OnlineLog::where('last_time', '<', time() - 86400)->delete();
+        (new HourlyUsage())->where(
+            'date',
+            '<',
+            date('Y-m-d', time() - 86400 * Config::obtain('traffic_log_retention_days'))
+        )->delete();
+        (new DetectLog())->where('datetime', '<', time() - 86400 * 3)->delete();
+        (new EmailQueue())->where('time', '<', time() - 86400)->delete();
+        (new OnlineLog())->where('last_time', '<', time() - 86400)->delete();
 
         echo Tools::toDateTime(time()) . ' 数据库清理完成' . PHP_EOL;
     }
@@ -80,14 +59,14 @@ final class Cron
         $login_days = Config::obtain('detect_inactive_user_login_days');
         $use_days = Config::obtain('detect_inactive_user_use_days');
 
-        User::where('is_admin', 0)
+        (new User())->where('is_admin', 0)
             ->where('is_inactive', 0)
             ->where('last_check_in_time', '<', time() - 86400 * $checkin_days)
             ->where('last_login_time', '<', time() - 86400 * $login_days)
             ->where('last_use_time', '<', time() - 86400 * $use_days)
             ->update(['is_inactive' => 1]);
 
-        User::where('is_admin', 0)
+        (new User())->where('is_admin', 0)
             ->where('is_inactive', 1)
             ->where('last_check_in_time', '>', time() - 86400 * $checkin_days)
             ->where('last_login_time', '>', time() - 86400 * $login_days)
@@ -95,12 +74,12 @@ final class Cron
             ->update(['is_inactive' => 0]);
 
         echo Tools::toDateTime(time()) .
-            ' 检测到 ' . User::where('is_inactive', 1)->count() . ' 个账户处于闲置状态' . PHP_EOL;
+            ' 检测到 ' . (new User())->where('is_inactive', 1)->count() . ' 个账户处于闲置状态' . PHP_EOL;
     }
 
     public static function detectNodeOffline(): void
     {
-        $nodes = Node::where('type', 1)->get();
+        $nodes = (new Node())->where('type', 1)->get();
 
         foreach ($nodes as $node) {
             if ($node->getNodeOnlineStatus() >= 0 && $node->online === 1) {
@@ -175,7 +154,7 @@ final class Cron
 
     public static function expirePaidUserAccount(): void
     {
-        $paidUsers = User::where('class', '>', 0)->get();
+        $paidUsers = (new User())->where('class', '>', 0)->get();
 
         foreach ($paidUsers as $user) {
             if (strtotime($user->class_expire) < time()) {
@@ -206,49 +185,53 @@ final class Cron
 
     public static function processEmailQueue(): void
     {
-        //记录当前时间戳
-        $timestamp = time();
-        //邮件队列处理
-        while (true) {
-            if (time() - $timestamp > 299) {
-                echo Tools::toDateTime(time()) . '邮件队列处理超时，已跳过' . PHP_EOL;
-                break;
-            }
-
-            DB::beginTransaction();
-            $email_queues_raw = DB::select('SELECT * FROM email_queue LIMIT 1 FOR UPDATE SKIP LOCKED');
-
-            if (count($email_queues_raw) === 0) {
-                DB::commit();
-                break;
-            }
-
-            $email_queues = array_map(static function ($value) {
-                return (array) $value;
-            }, $email_queues_raw);
-            $email_queue = $email_queues[0];
-            echo '发送邮件至 ' . $email_queue['to_email'] . PHP_EOL;
-            DB::delete('DELETE FROM email_queue WHERE id = ?', [$email_queue['id']]);
-
-            if (Tools::isEmail($email_queue['to_email'])) {
-                try {
-                    Mail::send(
-                        $email_queue['to_email'],
-                        $email_queue['subject'],
-                        $email_queue['template'],
-                        json_decode($email_queue['array'])
-                    );
-                } catch (Exception|ClientExceptionInterface $e) {
-                    echo $e->getMessage();
+        if ((new EmailQueue())->count() === 0) {
+            echo Tools::toDateTime(time()) . ' 邮件队列为空' . PHP_EOL;
+        } else {
+            //记录当前时间戳
+            $timestamp = time();
+            //邮件队列处理
+            while (true) {
+                if (time() - $timestamp > 299) {
+                    echo Tools::toDateTime(time()) . '邮件队列处理超时，已跳过' . PHP_EOL;
+                    break;
                 }
-            } else {
-                echo $email_queue['to_email'] . ' 邮箱格式错误，已跳过' . PHP_EOL;
+
+                DB::beginTransaction();
+                $email_queues_raw = DB::select('SELECT * FROM email_queue LIMIT 1 FOR UPDATE SKIP LOCKED');
+
+                if (count($email_queues_raw) === 0) {
+                    DB::commit();
+                    break;
+                }
+
+                $email_queues = array_map(static function ($value) {
+                    return (array) $value;
+                }, $email_queues_raw);
+                $email_queue = $email_queues[0];
+                echo '发送邮件至 ' . $email_queue['to_email'] . PHP_EOL;
+                DB::delete('DELETE FROM email_queue WHERE id = ?', [$email_queue['id']]);
+
+                if (Tools::isEmail($email_queue['to_email'])) {
+                    try {
+                        Mail::send(
+                            $email_queue['to_email'],
+                            $email_queue['subject'],
+                            $email_queue['template'],
+                            json_decode($email_queue['array'])
+                        );
+                    } catch (Exception|ClientExceptionInterface $e) {
+                        echo $e->getMessage();
+                    }
+                } else {
+                    echo $email_queue['to_email'] . ' 邮箱格式错误，已跳过' . PHP_EOL;
+                }
+
+                DB::commit();
             }
 
-            DB::commit();
+            echo Tools::toDateTime(time()) . ' 邮件队列处理完成' . PHP_EOL;
         }
-
-        echo Tools::toDateTime(time()) . ' 邮件队列处理完成' . PHP_EOL;
     }
 
     public static function processTabpOrderActivation(): void
@@ -258,16 +241,16 @@ final class Cron
         foreach ($users as $user) {
             $user_id = $user->id;
             // 获取用户账户等待激活的TABP订单
-            $pending_activation_orders = Order::where('user_id', $user_id)
+            $pending_activation_orders = (new Order())->where('user_id', $user_id)
                 ->where('status', 'pending_activation')
                 ->where('product_type', 'tabp')
-                ->orderBy('id', 'asc')
+                ->orderBy('id')
                 ->get();
             // 获取用户账户已激活的TABP订单，一个用户同时只能有一个已激活的TABP订单
-            $activated_order = Order::where('user_id', $user_id)
+            $activated_order = (new Order())->where('user_id', $user_id)
                 ->where('status', 'activated')
                 ->where('product_type', 'tabp')
-                ->orderBy('id', 'asc')
+                ->orderBy('id')
                 ->first();
             // 如果用户账户中没有已激活的TABP订单，且有等待激活的TABP订单，则激活最早的等待激活TABP订单
             if ($activated_order === null && count($pending_activation_orders) > 0) {
@@ -316,10 +299,10 @@ final class Cron
         foreach ($users as $user) {
             $user_id = $user->id;
             // 获取用户账户等待激活的流量包订单
-            $order = Order::where('user_id', $user_id)
+            $order = (new Order())->where('user_id', $user_id)
                 ->where('status', 'pending_activation')
                 ->where('product_type', 'bandwidth')
-                ->orderBy('id', 'asc')
+                ->orderBy('id')
                 ->first();
 
             if ($order !== null) {
@@ -348,10 +331,10 @@ final class Cron
         foreach ($users as $user) {
             $user_id = $user->id;
             // 获取用户账户等待激活的时间包订单
-            $order = Order::where('user_id', $user_id)
+            $order = (new Order())->where('user_id', $user_id)
                 ->where('status', 'pending_activation')
                 ->where('product_type', 'time')
-                ->orderBy('id', 'asc')
+                ->orderBy('id')
                 ->first();
 
             if ($order !== null) {
@@ -381,11 +364,11 @@ final class Cron
 
     public static function processPendingOrder(): void
     {
-        $pending_payment_orders = Order::where('status', 'pending_payment')->get();
+        $pending_payment_orders = (new Order())->where('status', 'pending_payment')->get();
 
         foreach ($pending_payment_orders as $order) {
             // 检查账单支付状态
-            $invoice = Invoice::where('order_id', $order->id)->first();
+            $invoice = (new Invoice())->where('order_id', $order->id)->first();
 
             if ($invoice === null) {
                 continue;
@@ -414,23 +397,36 @@ final class Cron
         echo Tools::toDateTime(time()) . ' 等待中订单处理完成' . PHP_EOL;
     }
 
+    public static function removeInactiveUserLinkAndInvite(): void
+    {
+        $inactive_users = (new User())->where('is_inactive', 1)->get();
+
+        foreach ($inactive_users as $user) {
+            $user->removeLink();
+            $user->removeInvite();
+        }
+
+        echo Tools::toDateTime(time()) . ' Successfully removed inactive user\'s Link and Invite' . PHP_EOL;
+    }
+
     public static function resetNodeBandwidth(): void
     {
-        Node::where('bandwidthlimit_resetday', date('d'))->update(['node_bandwidth' => 0]);
+        (new Node())->where('bandwidthlimit_resetday', date('d'))->update(['node_bandwidth' => 0]);
 
         echo Tools::toDateTime(time()) . ' 重设节点流量完成' . PHP_EOL;
     }
 
-    public static function resetTodayTraffic(): void
+    public static function resetTodayBandwidth(): void
     {
-        User::query()->update(['transfer_today' => 0]);
+        (new User())->query()->update(['transfer_today' => 0]);
 
         echo Tools::toDateTime(time()) . ' 重设用户每日流量完成' . PHP_EOL;
     }
 
-    public static function resetFreeUserTraffic(): void
+    public static function resetFreeUserBandwidth(): void
     {
-        $freeUsers = User::where('class', 0)->where('auto_reset_day', date('d'))->get();
+        $freeUsers = (new User())->where('class', 0)
+            ->where('auto_reset_day', date('d'))->get();
 
         foreach ($freeUsers as $user) {
             try {
@@ -455,14 +451,15 @@ final class Cron
     public static function sendDailyFinanceMail(): void
     {
         $today = strtotime('00:00:00');
-        $paylists = Paylist::where('status', 1)->whereBetween('datetime', [strtotime('-1 day', $today), $today])->get();
+        $paylists = (new Paylist())->where('status', 1)
+            ->whereBetween('datetime', [strtotime('-1 day', $today), $today])->get();
         $text_html = '<table border=1><tr><td>金额</td><td>用户ID</td><td>用户名</td><td>充值时间</td>';
 
         foreach ($paylists as $paylist) {
             $text_html .= '<tr>';
             $text_html .= '<td>' . $paylist->total . '</td>';
             $text_html .= '<td>' . $paylist->userid . '</td>';
-            $text_html .= '<td>' . User::find($paylist->userid)->user_name . '</td>';
+            $text_html .= '<td>' . (new User())->find($paylist->userid)->user_name . '</td>';
             $text_html .= '<td>' . Tools::toDateTime((int) $paylist->datetime) . '</td>';
             $text_html .= '</tr>';
         }
@@ -487,7 +484,7 @@ final class Cron
     public static function sendWeeklyFinanceMail(): void
     {
         $today = strtotime('00:00:00');
-        $paylists = Paylist::where('status', 1)
+        $paylists = (new Paylist())->where('status', 1)
             ->whereBetween('datetime', [strtotime('-1 week', $today), $today])
             ->get();
 
@@ -510,7 +507,7 @@ final class Cron
     public static function sendMonthlyFinanceMail(): void
     {
         $today = strtotime('00:00:00');
-        $paylists = Paylist::where('status', 1)
+        $paylists = (new Paylist())->where('status', 1)
             ->whereBetween('datetime', [strtotime('-1 month', $today), $today])
             ->get();
 
@@ -532,7 +529,7 @@ final class Cron
 
     public static function sendPaidUserUsageLimitNotification(): void
     {
-        $paidUsers = User::where('class', '>', 0)->get();
+        $paidUsers = (new User())->where('class', '>', 0)->get();
 
         foreach ($paidUsers as $user) {
             $user_traffic_left = $user->transfer_enable - $user->u - $user->d;
@@ -577,8 +574,8 @@ final class Cron
 
     public static function sendDailyTrafficReport(): void
     {
-        $users = User::whereIn('daily_mail_enable', [1, 2])->get();
-        $ann_latest_raw = Ann::orderBy('date', 'desc')->first();
+        $users = (new User())->whereIn('daily_mail_enable', [1, 2])->get();
+        $ann_latest_raw = (new Ann())->orderBy('date', 'desc')->first();
 
         if ($ann_latest_raw === null) {
             $ann_latest = '<br><br>';
@@ -628,7 +625,7 @@ final class Cron
 
     public static function updateNodeIp(): void
     {
-        $nodes = Node::where('type', 1)->get();
+        $nodes = (new Node())->where('type', 1)->get();
 
         foreach ($nodes as $node) {
             $node->updateNodeIp();

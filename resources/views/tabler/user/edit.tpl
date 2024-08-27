@@ -1,5 +1,7 @@
 {include file='user/header.tpl'}
 
+<script src="//{$config['jsdelivr_url']}/npm/jquery/dist/jquery.min.js"></script>
+
 <div class="page-wrapper">
     <div class="container-xl">
         <div class="page-header d-print-none text-white">
@@ -74,12 +76,12 @@
                                                 <div class="card-footer">
                                                     <div class="d-flex">
                                                         {if $public_setting['reg_email_verify'] && $config['enable_change_email']}
-                                                            <button id="email-verify" class="btn btn-link"
+                                                            <button class="btn btn-link"
                                                                     hx-post="/user/send" hx-swap="none"
                                                                     hx-vals='js:{ email: document.getElementById("newemail").value }'>
                                                                 获取验证码
                                                             </button>
-                                                            <button id="modify-email" class="btn btn-primary ms-auto"
+                                                            <button class="btn btn-primary ms-auto"
                                                                     hx-post="/user/email" hx-swap="none"
                                                                     hx-vals='js:{
                                                                         newemail: document.getElementById("new-email").value,
@@ -88,13 +90,13 @@
                                                                 修改
                                                             </button>
                                                         {elseif $config['enable_change_email']}
-                                                            <button id="modify-email" class="btn btn-primary ms-auto"
+                                                            <button class="btn btn-primary ms-auto"
                                                                     hx-post="/user/email" hx-swap="none"
                                                                     hx-vals='js:{ newemail: document.getElementById("new-email").value }'>
                                                                 修改
                                                             </button>
                                                         {else}
-                                                            <button id="modify-email" class="btn btn-primary ms-auto"
+                                                            <button class="btn btn-primary ms-auto"
                                                                     disabled>不允许修改
                                                             </button>
                                                         {/if}
@@ -114,7 +116,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="modify-username" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                            hx-post="/user/username" hx-swap="none"
                                                            hx-vals='js:{ newusername: document.getElementById("new-username").value }'>
                                                             修改
@@ -172,7 +174,7 @@
                                                 {if $user->im_type !== 0}
                                                     <div class="card-footer">
                                                         <div class="d-flex">
-                                                            <button id="unbind-im" class="btn btn-red ms-auto"
+                                                            <button class="btn btn-red ms-auto"
                                                                     hx-post="/user/unbind_im" hx-swap="none">
                                                                 解绑
                                                             </button>
@@ -236,16 +238,16 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="reset-2fa" class="btn btn-link"
+                                                        <button class="btn btn-link"
                                                                 hx-post="/user/ga_reset" hx-swap="none" >
                                                             重置
                                                         </button>
-                                                        <button id="test-2fa" class="btn btn-link"
+                                                        <button class="btn btn-link"
                                                                 hx-post="/user/ga_check" hx-swap="none"
                                                                 hx-vals='js:{ code: document.getElementById("ga-test-code").value }'>
                                                             测试
                                                         </button>
-                                                        <button id="save-2fa" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                                 hx-post="/user/ga_set" hx-swap="none"
                                                                 hx-vals='js:{ enable: document.getElementById("ga-enable").value }'>
                                                             设置
@@ -266,14 +268,14 @@
                                                     </div>
                                                     <div class="mb-3">
                                                         <form>
-                                                            <input id="new-password" type="password"
+                                                            <input id="new_password" type="password"
                                                                    class="form-control" placeholder="输入新密码"
                                                                    autocomplete="off">
                                                         </form>
                                                     </div>
                                                     <div class="mb-3">
                                                         <form>
-                                                            <input id="repeat-new-password" type="password"
+                                                            <input id="confirm_new_password" type="password"
                                                                    class="form-control" placeholder="再次输入新密码"
                                                                    autocomplete="off">
                                                         </form>
@@ -281,12 +283,13 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="modify-login-passwd" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                                 hx-post="/user/password" hx-swap="none"
                                                                 hx-vals='js:{
-                                                                pwd: document.getElementById("new-password").value
-                                                                repwd: document.getElementById("repeat-new-password").value
-                                                                oldpwd: document.getElementById("password").value }'>
+                                                                    new_password: document.getElementById("new_password").value,
+                                                                    confirm_new_password: document.getElementById("confirm_new_password").value,
+                                                                    password: document.getElementById("password").value
+                                                                }'>
                                                             修改
                                                         </button>
                                                     </div>
@@ -316,7 +319,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="modify-user-method" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                                 hx-post="/user/method" hx-swap="none"
                                                                 hx-vals='js:{ method: document.getElementById("user-method").value }'>
                                                             修改
@@ -334,7 +337,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="reset-sub-url" class="btn btn-primary ms-auto bg-red"
+                                                        <button class="btn btn-primary ms-auto bg-red"
                                                                 hx-post="/user/url_reset" hx-swap="none">
                                                             重置
                                                         </button>
@@ -352,7 +355,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="reset-passwd" class="btn btn-primary ms-auto bg-red"
+                                                        <button class="btn btn-primary ms-auto bg-red"
                                                                 hx-post="/user/passwd_reset" hx-swap="none">
                                                             重置
                                                         </button>
@@ -387,7 +390,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="modify-daily-mail" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                                 hx-post="/user/daily_mail" hx-swap="none"
                                                                 hx-vals='js:{ mail: document.getElementById("daily-mail").value }'>
                                                             修改
@@ -416,7 +419,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="modify-contact-method" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                                 hx-post="/user/contact_method" hx-swap="none"
                                                                 hx-vals='js:{ contact: document.getElementById("contact-method").value }'>
                                                             修改
@@ -441,7 +444,7 @@
                                                 </div>
                                                 <div class="card-footer">
                                                     <div class="d-flex">
-                                                        <button id="modify-user-theme" class="btn btn-primary ms-auto"
+                                                        <button class="btn btn-primary ms-auto"
                                                                 hx-post="/user/theme" hx-swap="none"
                                                                 hx-vals='js:{ theme: document.getElementById("user-theme").value }'>
                                                             修改
@@ -495,7 +498,7 @@
                         </div>
                         <div class="py-3">
                             <form>
-                                <input id="confirm-passwd" type="password" class="form-control"
+                                <input id="confirm_kill_password" type="password" class="form-control"
                                        placeholder="输入登录密码" autocomplete="off">
                             </form>
                         </div>
@@ -509,9 +512,9 @@
                                     </button>
                                 </div>
                                 <div class="col">
-                                    <button href="#" id="confirm-kill" class="btn btn-danger w-100" data-bs-dismiss="modal"
+                                    <button href="#" class="btn btn-danger w-100" data-bs-dismiss="modal"
                                             hx-post="/user/kill" hx-swap="none"
-                                            hx-vals='js:{ passwd: document.getElementById("confirm-passwd").value }'>
+                                            hx-vals='js:{ password: document.getElementById("confirm_kill_password").value }'>
                                         确认
                                     </button>
                                 </div>
@@ -534,22 +537,24 @@
         });
 
         {if $user->im_type === 0 && $user->im_value === ''}
+        let oauthProvider = $('#oauth-provider');
+
         $("#imtype").on('change', function () {
             if ($(this).val() === '0') {
-                $('#oauth-provider').empty();
+                oauthProvider.empty();
             } else if ($(this).val() === '1') {
-                $('#oauth-provider').empty();
-                $('#oauth-provider').append(
+                oauthProvider.empty();
+                oauthProvider.append(
                     "<a id='bind-slack' class='btn btn-azure ms-auto'>绑定 Slack</a>"
                 );
             } else if ($(this).val() === '2') {
-                $('#oauth-provider').empty();
-                $('#oauth-provider').append(
+                oauthProvider.empty();
+                oauthProvider.append(
                     "<a id='bind-discord' class='btn btn-indigo ms-auto'>绑定 Discord</a>"
                 );
             } else if ($(this).val() === '4') {
-                $('#oauth-provider').empty();
-                $('#oauth-provider').append(
+                oauthProvider.empty();
+                oauthProvider.append(
                     '<script async src=\"https://telegram.org/js/telegram-widget.js?22\"' +
                     ' data-telegram-login=\"' + "{$public_setting['telegram_bot']}" +
                     '\" data-size=\"large" data-onauth=\"onTelegramAuth(user)\"' +
@@ -558,34 +563,24 @@
             }
         });
 
-        $('#oauth-provider').on('click', '#bind-slack', function () {
+        oauthProvider.on('click', '#bind-slack', function () {
             $.ajax({
                 type: "POST",
                 url: "/oauth/slack",
                 dataType: "json",
                 success: function (data) {
-                    if (data.ret === 1) {
-                        window.location.replace(data.redir);
-                    } else {
-                        $('#fail-message').text(data.msg);
-                        $('#fail-dialog').modal('show');
-                    }
+                    handleOauthResult(data, 'slack')
                 }
             })
         });
 
-        $('#oauth-provider').on('click', '#bind-discord', function () {
+        oauthProvider.on('click', '#bind-discord', function () {
             $.ajax({
                 type: "POST",
                 url: "/oauth/discord",
                 dataType: "json",
                 success: function (data) {
-                    if (data.ret === 1) {
-                        window.location.replace(data.redir);
-                    } else {
-                        $('#fail-message').text(data.msg);
-                        $('#fail-dialog').modal('show');
-                    }
+                    handleOauthResult(data, 'discord')
                 }
             })
         });
@@ -599,15 +594,23 @@
                     user: JSON.stringify(user),
                 },
                 success: function (data) {
-                    if (data.ret === 1) {
-                        $('#success-message').text(data.msg);
-                        $('#success-dialog').modal('show');
-                    } else {
-                        $('#error-message').text(data.msg);
-                        $('#fail-dialog').modal('show');
-                    }
+                    handleOauthResult(data, 'telegram')
                 }
             })
+        }
+
+        function handleOauthResult(data, type = 'telegram') {
+            if (data.ret === 1) {
+                if (type === 'telegram') {
+                    $('#success-message').text(data.msg);
+                    $('#success-dialog').modal('show');
+                } else {
+                    window.location.replace(data.redir);
+                }
+            } else {
+                $('#error-message').text(data.msg);
+                $('#fail-dialog').modal('show');
+            }
         }
         {/if}
     </script>

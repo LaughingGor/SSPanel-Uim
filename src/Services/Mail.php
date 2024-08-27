@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Config;
+use App\Services\Mail\AlibabaCloud;
+use App\Services\Mail\Mailchimp;
 use App\Services\Mail\Mailgun;
 use App\Services\Mail\NullMail;
 use App\Services\Mail\Postal;
@@ -13,22 +15,23 @@ use App\Services\Mail\Ses;
 use App\Services\Mail\Smtp;
 use Exception;
 use Psr\Http\Client\ClientExceptionInterface;
-use Smarty;
+use Smarty\Smarty;
 
 /*
  * Mail Service
  */
 final class Mail
 {
-    public static function getClient(): Mailgun|Smtp|SendGrid|NullMail|Ses|Postal
+    public static function getClient(): AlibabaCloud|Mailchimp|Mailgun|NullMail|Postal|SendGrid|Ses|Smtp
     {
-        $driver = Config::obtain('email_driver');
-        return match ($driver) {
+        return match (Config::obtain('email_driver')) {
+            'alibabacloud' => new AlibabaCloud(),
+            'mailchimp' => new Mailchimp(),
             'mailgun' => new Mailgun(),
+            'postal' => new Postal(),
+            'sendgrid' => new SendGrid(),
             'ses' => new Ses(),
             'smtp' => new Smtp(),
-            'sendgrid' => new SendGrid(),
-            'postal' => new Postal(),
             default => new NullMail(),
         };
     }
@@ -39,10 +42,9 @@ final class Mail
     public static function genHtml($template, $ary): false|string
     {
         $smarty = new Smarty();
-        $smarty->settemplatedir(BASE_PATH . '/resources/email/');
-        $smarty->setcompiledir(BASE_PATH . '/storage/framework/smarty/compile/');
-        $smarty->setcachedir(BASE_PATH . '/storage/framework/smarty/cache/');
-        // add config
+        $smarty->setTemplateDir(BASE_PATH . '/resources/email/');
+        $smarty->setCompileDir(BASE_PATH . '/storage/framework/smarty/compile/');
+        $smarty->setCacheDir(BASE_PATH . '/storage/framework/smarty/cache/');
         $smarty->assign('config', View::getConfig());
 
         foreach ($ary as $key => $value) {
@@ -56,10 +58,10 @@ final class Mail
      * @throws Exception
      * @throws ClientExceptionInterface
      */
-    public static function send($to, $subject, $template, $ary = [], $files = []): void
+    public static function send($to, $subject, $template, $array = []): void
     {
-        $text = self::genHtml($template, $ary);
+        $body = self::genHtml($template, $array);
 
-        self::getClient()->send($to, $subject, $text, $files);
+        self::getClient()->send($to, $subject, $body);
     }
 }

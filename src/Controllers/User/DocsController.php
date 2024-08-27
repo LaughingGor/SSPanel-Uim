@@ -17,14 +17,14 @@ final class DocsController extends BaseController
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         if (! Config::obtain('display_docs') ||
             (Config::obtain('display_docs_only_for_paid_user') && $this->user->class === 0)) {
             return $response->withRedirect('/user');
         }
 
-        $docs = Docs::orderBy('id', 'desc')->get();
+        $docs = (new Docs())->orderBy('id', 'desc')->get();
 
         return $response->write(
             $this->view()
@@ -36,7 +36,7 @@ final class DocsController extends BaseController
     /**
      * @throws Exception
      */
-    public function detail(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function detail(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         if (! Config::obtain('display_docs') ||
             (Config::obtain('display_docs_only_for_paid_user') && $this->user->class === 0)) {
@@ -44,7 +44,7 @@ final class DocsController extends BaseController
         }
 
         $id = $args['id'];
-        $doc = Docs::find($id);
+        $doc = (new Docs())->find($id);
 
         return $response->write(
             $this->view()

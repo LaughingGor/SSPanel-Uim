@@ -21,10 +21,11 @@ use voku\helper\AntiXSS;
 
 final class PayPal extends Base
 {
-    private array $gateway_config;
+    protected array $gateway_config;
 
     public function __construct()
     {
+        $this->antiXss = new AntiXSS();
         $configs = Config::getClass('billing');
 
         $this->gateway_config = [
@@ -62,17 +63,10 @@ final class PayPal extends Base
         return 'PayPal';
     }
 
-    /**
-     * @throws GuzzleException
-     * @throws RedisException
-     * @throws Throwable
-     */
     public function purchase(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $antiXss = new AntiXSS();
-
-        $price = $antiXss->xss_clean($request->getParam('price'));
-        $invoice_id = $antiXss->xss_clean($request->getParam('invoice_id'));
+        $price = $this->antiXss->xss_clean($request->getParam('price'));
+        $invoice_id = $this->antiXss->xss_clean($request->getParam('invoice_id'));
         $trade_no = self::generateGuid();
 
         if ($price <= 0) {
@@ -82,7 +76,14 @@ final class PayPal extends Base
             ]);
         }
 
-        $exchange_amount = Exchange::exchange($price, 'CNY', Config::obtain('paypal_currency'));
+        try {
+            $exchange_amount = (new Exchange())->exchange($price, 'CNY', Config::obtain('paypal_currency'));
+        } catch (GuzzleException|RedisException) {
+            return $response->withJson([
+                'ret' => 0,
+                'msg' => '汇率获取失败',
+            ]);
+        }
 
         $order_data = [
             'intent' => 'CAPTURE',
@@ -97,38 +98,44 @@ final class PayPal extends Base
             ],
         ];
 
-        $pp = new PayPalClient($this->gateway_config);
-        $pp->getAccessToken();
-
-        $order = $pp->createOrder($order_data);
+        try {
+            $pp = new PayPalClient($this->gateway_config);
+            $pp->getAccessToken();
+            $order = $pp->createOrder($order_data);
+        } catch (Throwable) {
+            return $response->withJson([
+                'ret' => 0,
+                'msg' => 'PayPal API Error',
+            ]);
+        }
 
         $user = Auth::getUser();
-        $pl = new Paylist();
 
+        $pl = new Paylist();
         $pl->userid = $user->id;
         $pl->total = $price;
         $pl->invoice_id = $invoice_id;
         $pl->tradeno = $trade_no;
         $pl->gateway = self::_readableName();
-
         $pl->save();
 
         return $response->withJson($order);
     }
 
-    /**
-     * @throws Throwable
-     */
     public function notify($request, $response, $args): ResponseInterface
     {
-        $antiXss = new AntiXSS();
+        $order_id = $this->antiXss->xss_clean($request->getParam('order_id'));
 
-        $order_id = $antiXss->xss_clean($request->getParam('order_id'));
-
-        $pp = new PayPalClient($this->gateway_config);
-        $pp->getAccessToken();
-
-        $result = $pp->capturePaymentOrder($order_id);
+        try {
+            $pp = new PayPalClient($this->gateway_config);
+            $pp->getAccessToken();
+            $result = $pp->capturePaymentOrder($order_id);
+        } catch (Throwable) {
+            return $response->withJson([
+                'ret' => 0,
+                'msg' => 'PayPal API Error',
+            ]);
+        }
 
         if (isset($result['status']) && $result['status'] === 'COMPLETED') {
             $this->postPayment($result['purchase_units'][0]['reference_id']);

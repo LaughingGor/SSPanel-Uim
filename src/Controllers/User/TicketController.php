@@ -14,11 +14,9 @@ use Exception;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\ResponseInterface;
-use RedisException;
 use Slim\Http\Response;
 use Slim\Http\ServerRequest;
 use Telegram\Bot\Exceptions\TelegramSDKException;
-use voku\helper\AntiXSS;
 use function array_merge;
 use function count;
 use function json_decode;
@@ -32,13 +30,13 @@ final class TicketController extends BaseController
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): ?ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         if (! Config::obtain('enable_ticket')) {
             return $response->withRedirect('/user');
         }
 
-        $tickets = Ticket::where('userid', $this->user->id)->orderBy('datetime', 'desc')->get();
+        $tickets = (new Ticket())->where('userid', $this->user->id)->orderBy('datetime', 'desc')->get();
 
         foreach ($tickets as $ticket) {
             $ticket->status = $ticket->status();
@@ -54,7 +52,6 @@ final class TicketController extends BaseController
     }
 
     /**
-     * @throws RedisException
      * @throws ClientExceptionInterface
      * @throws TelegramSDKException
      * @throws GuzzleException
@@ -67,7 +64,7 @@ final class TicketController extends BaseController
 
         if (! Config::obtain('enable_ticket') ||
             $this->user->is_shadow_banned ||
-            ! RateLimit::checkTicketLimit($this->user->id) ||
+            ! (new RateLimit())->checkRateLimit('ticket', (string) $this->user->id) ||
             $title === '' ||
             $comment === '' ||
             $type === ''
@@ -78,24 +75,22 @@ final class TicketController extends BaseController
             ]);
         }
 
-        $antiXss = new AntiXSS();
-
         $content = [
             [
                 'comment_id' => 0,
                 'commenter_name' => $this->user->user_name,
-                'comment' => $antiXss->xss_clean($comment),
+                'comment' => $this->antiXss->xss_clean($comment),
                 'datetime' => time(),
             ],
         ];
 
         $ticket = new Ticket();
-        $ticket->title = $antiXss->xss_clean($title);
+        $ticket->title = $this->antiXss->xss_clean($title);
         $ticket->content = json_encode($content);
         $ticket->userid = $this->user->id;
         $ticket->datetime = time();
         $ticket->status = 'open_wait_admin';
-        $ticket->type = $antiXss->xss_clean($type);
+        $ticket->type = $this->antiXss->xss_clean($type);
         $ticket->save();
 
         if (Config::obtain('mail_ticket')) {
@@ -131,7 +126,7 @@ final class TicketController extends BaseController
             ]);
         }
 
-        $ticket = Ticket::where('id', $id)->where('userid', $this->user->id)->first();
+        $ticket = (new Ticket())->where('id', $id)->where('userid', $this->user->id)->first();
 
         if ($ticket === null) {
             return $response->withJson([
@@ -140,14 +135,12 @@ final class TicketController extends BaseController
             ]);
         }
 
-        $antiXss = new AntiXSS();
-
         $content_old = json_decode($ticket->content, true);
         $content_new = [
             [
                 'comment_id' => $content_old[count($content_old) - 1]['comment_id'] + 1,
                 'commenter_name' => $this->user->user_name,
-                'comment' => $antiXss->xss_clean($comment),
+                'comment' => $this->antiXss->xss_clean($comment),
                 'datetime' => time(),
             ],
         ];
@@ -181,7 +174,7 @@ final class TicketController extends BaseController
         }
 
         $id = $args['id'];
-        $ticket = Ticket::where('id', '=', $id)->where('userid', $this->user->id)->first();
+        $ticket = (new Ticket())->where('id', '=', $id)->where('userid', $this->user->id)->first();
 
         if ($ticket === null) {
             return $response->withRedirect('/user/ticket');

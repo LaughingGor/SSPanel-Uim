@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services\Bot\Telegram;
 
-use App\Controllers\SubController;
 use App\Models\Config;
 use App\Models\InviteCode;
 use App\Models\LoginIp;
 use App\Models\OnlineLog;
 use App\Models\Payback;
 use App\Models\SubscribeLog;
+use App\Models\User;
+use App\Services\Reward;
+use App\Services\Subscribe;
 use App\Utils\Tools;
 use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use MaxMind\Db\Reader\InvalidDatabaseException;
 use Telegram\Bot\Api;
@@ -38,7 +41,7 @@ final class Callback
     /**
      * 触发用户
      */
-    private $user;
+    private null|Model|User $user;
 
     /**
      * 触发用户TG信息
@@ -331,7 +334,7 @@ final class Callback
         switch ($OpEnd) {
             case 'login_log':
                 // 登录记录
-                $total = LoginIp::where('userid', $this->user->id)
+                $total = (new LoginIp())->where('userid', $this->user->id)
                     ->where('type', '=', 0)
                     ->orderBy('datetime', 'desc')
                     ->take(10)
@@ -359,7 +362,7 @@ final class Callback
                 break;
             case 'usage_log':
                 // 使用记录
-                $logs = OnlineLog::where('user_id', $this->user->id)
+                $logs = (new OnlineLog())->where('user_id', $this->user->id)
                     ->where('last_time', '>', time() - 90)->orderByDesc('last_time')->get('ip');
                 $text = '<strong>以下是你账户在线 IP 和地理位置：</strong>' . PHP_EOL . PHP_EOL;
 
@@ -385,7 +388,7 @@ final class Callback
                 break;
             case 'rebate_log':
                 // 返利记录
-                $paybacks = Payback::where('ref_by', $this->user->id)->orderBy('datetime', 'desc')->take(10)->get();
+                $paybacks = (new Payback())->where('ref_by', $this->user->id)->orderBy('datetime', 'desc')->take(10)->get();
                 $text = '<strong>以下是你最近 10 次返利记录：</strong>' . PHP_EOL . PHP_EOL;
 
                 foreach ($paybacks as $payback) {
@@ -410,7 +413,7 @@ final class Callback
             case 'subscribe_log':
                 // 订阅记录
                 if (Config::obtain('subscribe_log')) {
-                    $logs = SubscribeLog::orderBy('id', 'desc')->where('user_id', $this->user->id)->take(10)->get();
+                    $logs = (new SubscribeLog())->orderBy('id', 'desc')->where('user_id', $this->user->id)->take(10)->get();
                     $text = '<strong>以下是你最近 10 次订阅记录：</strong>' . PHP_EOL . PHP_EOL;
 
                     foreach ($logs as $log) {
@@ -537,7 +540,7 @@ final class Callback
         switch ($OpEnd) {
             case 'update_link':
                 // 重置订阅链接
-                $this->user->cleanLink();
+                $this->user->removeLink();
 
                 $this->answerCallbackQuery([
                     'text' => '订阅链接重置成功，请在下方重新更新订阅。',
@@ -741,15 +744,19 @@ final class Callback
                     'callback_data' => 'user.subscribe|singbox',
                 ],
                 [
+                    'text' => 'V2RayJson',
+                    'callback_data' => 'user.subscribe|v2rayjson',
+                ],
+                [
                     'text' => 'Shadowsocks',
                     'callback_data' => 'user.subscribe|ss',
                 ],
+            ],
+            [
                 [
                     'text' => 'SIP002',
                     'callback_data' => 'user.subscribe|sip002',
                 ],
-            ],
-            [
                 [
                     'text' => 'V2Ray',
                     'callback_data' => 'user.subscribe|v2',
@@ -814,7 +821,7 @@ final class Callback
 
             $sendMessage = [];
 
-            $UniversalSub_Url = SubController::getUniversalSubLink($this->user);
+            $UniversalSub_Url = Subscribe::getUniversalSubLink($this->user);
 
             $text = match ($CallbackDataExplode[1]) {
                 'json' => 'Json 通用订阅地址：' . PHP_EOL . PHP_EOL .
@@ -823,6 +830,8 @@ final class Callback
                     '<code>' . $UniversalSub_Url . '/clash</code>' . PHP_EOL . PHP_EOL,
                 'singbox' => 'SingBox 通用订阅地址：' . PHP_EOL . PHP_EOL .
                     '<code>' . $UniversalSub_Url . '/singbox</code>' . PHP_EOL . PHP_EOL,
+                'v2rayjson' => 'V2RayJson 通用订阅地址：' . PHP_EOL . PHP_EOL .
+                    '<code>' . $UniversalSub_Url . '/v2rayjson</code>' . PHP_EOL . PHP_EOL,
                 'sip008' => 'SIP008 通用订阅地址：' . PHP_EOL . PHP_EOL .
                     '<code>' . $UniversalSub_Url . '/sip008</code>' . PHP_EOL . PHP_EOL,
                 'ss' => 'Shadowsocks 客户端订阅地址：' . PHP_EOL . PHP_EOL .
@@ -873,7 +882,7 @@ final class Callback
 
     public function getUserInviteKeyboard(): array
     {
-        $paybacks_sum = Payback::where('ref_by', $this->user->id)->sum('ref_get');
+        $paybacks_sum = (new Payback())->where('ref_by', $this->user->id)->sum('ref_get');
 
         if (is_null($paybacks_sum)) {
             $paybacks_sum = 0;
@@ -882,11 +891,11 @@ final class Callback
         $invite = Config::getClass('ref');
 
         $text = [
-            '<strong>你每邀请 1 位用户注册：</strong>',
+            '<strong>你每邀请 <code>1</code> 位用户注册：</strong>',
             '',
-            '- 你会获得 <strong>' . $invite['invitation_to_register_traffic_reward'] . 'G</strong> 流量奖励。',
-            '- 对方将获得 <strong>' . $invite['invitation_to_register_balance_reward'] . ' 元</strong> 初始账户余额。',
-            '- 对方充值时你还会获得对方充值金额的 <strong>' . $invite['rebate_ratio'] * 100 . '%</strong> 的返利。',
+            '- 你会获得 <code>' . Config::obtain('invite_reg_traffic_reward') . 'G</code> 流量奖励。',
+            '- 对方将获得 <code>' . Config::obtain('invite_reg_money_reward') . '元</code> 初始账户余额。',
+            '- 对方支付账单时你会获得对方账单金额的 <code>' . Config::obtain('invite_reward_rate') * 100 . '%</code> 的返利。',
             '',
             '已获得返利：' . $paybacks_sum . ' 元。',
         ];
@@ -925,11 +934,10 @@ final class Callback
 
         if ($OpEnd === 'get') {
             $this->allow_edit_message = false;
-            $code = InviteCode::where('user_id', $this->user->id)->first();
+            $code = (new InviteCode())->where('user_id', $this->user->id)->first();
 
             if ($code === null) {
-                $this->user->addInviteCode();
-                $code = InviteCode::where('user_id', $this->user->id)->first();
+                $code = (new InviteCode())->add($this->user->id);
             }
 
             $inviteUrl = $_ENV['baseUrl'] . '/auth/register?code=' . $code->code;
@@ -973,10 +981,20 @@ final class Callback
      */
     public function userCheckin(): void
     {
-        $checkin = $this->user->checkin();
+        if ($this->user->isAbleToCheckin()) {
+            $traffic = Reward::issueCheckinReward($this->user->id);
+
+            if (! $traffic) {
+                $msg = '签到失败';
+            } else {
+                $msg = '获得了 ' . $traffic . 'MB 流量';
+            }
+        } else {
+            $msg = '你今天已经签到过了';
+        }
 
         $this->answerCallbackQuery([
-            'text' => $checkin['msg'],
+            'text' => $msg,
             'show_alert' => true,
         ]);
         // 回送信息
@@ -998,7 +1016,7 @@ final class Callback
         }
 
         $this->replyWithMessage([
-            'text' => $temp['text'] . PHP_EOL . PHP_EOL . $checkin['msg'],
+            'text' => $temp['text'] . PHP_EOL . PHP_EOL . $msg,
             'reply_to_message_id' => $this->message_id,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode(

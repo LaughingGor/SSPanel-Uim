@@ -3,7 +3,7 @@
         {
             "name": "Clash Verge",
             "tagMethod": "github_release",
-            "gitRepo": "zzzgydi/clash-verge",
+            "gitRepo": "clash-verge-rev/clash-verge-rev",
             "savePath": "public/clients/",
             "downloads": [
                 {
@@ -17,6 +17,18 @@
                 {
                     "sourceName": "clash-verge_%tagName1%_amd64.AppImage.tar.gz",
                     "saveName": "Clash.Verge.AppImage.tar.gz"
+                }
+            ]
+        },
+        {
+            "name": "Clash.Meta For Android",
+            "tagMethod": "github_release",
+            "gitRepo": "MetaCubeX/ClashMetaForAndroid",
+            "savePath": "public/clients/",
+            "downloads": [
+                {
+                    "sourceName": "cmfa-%tagName1%-meta-universal-release.apk ",
+                    "saveName": "CMFA.apk"
                 }
             ]
         },

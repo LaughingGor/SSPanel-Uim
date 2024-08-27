@@ -14,7 +14,7 @@
     <!-- JS files -->
     <script src="/assets/js/fuck.min.js"></script>
     <script src="//{$config['jsdelivr_url']}/npm/qrcode_js@latest/qrcode.min.js"></script>
-    <script src="//{$config['jsdelivr_url']}/npm/jquery/dist/jquery.min.js"></script>
+    <script src="//{$config['jsdelivr_url']}/npm/clipboard@latest/dist/clipboard.min.js"></script>
     <script src="//{$config['jsdelivr_url']}/npm/htmx.org@latest/dist/htmx.min.js"></script>
     <style>
         .home-subtitle {
@@ -55,13 +55,11 @@
                     </a>
                     <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                         {if $user->is_dark_mode}
-                            <a id="switch-theme-mode" class="dropdown-item"
-                               hx-post="/user/switch_theme_mode" hx-swap="none">
+                            <a class="dropdown-item" hx-post="/user/switch_theme_mode" hx-swap="none">
                                 浅色模式
                             </a>
                         {else}
-                            <a id="switch_theme_mode" class="dropdown-item"
-                               hx-post="/user/switch_theme_mode" hx-swap="none">
+                            <a class="dropdown-item" hx-post="/user/switch_theme_mode" hx-swap="none">
                                 深色模式
                             </a>
                         {/if}
@@ -105,8 +103,8 @@
                                         </a>
                                         {if $public_setting['subscribe_log']}
                                             <a class="dropdown-item" href="/user/subscribe">
-                                                <i class="ti ti-rss"></i></i>&nbsp;
-                                                订阅
+                                                <i class="ti ti-rss"></i>&nbsp;
+                                                订阅日志
                                             </a>
                                         {/if}
                                         <a class="dropdown-item" href="/user/invite">
@@ -136,6 +134,12 @@
                                     <i class="ti ti-chart-bar"></i>&nbsp;
                                     流量倍率
                                 </a>
+                                {if $public_setting['traffic_log']}
+                                    <a class="dropdown-item" href="/user/traffic">
+                                        <i class="ti ti-traffic-lights"></i>&nbsp;
+                                        流量日志
+                                    </a>
+                                {/if}
                             </div>
                         </li>
                         <li class="nav-item dropdown">

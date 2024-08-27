@@ -6,13 +6,13 @@ namespace App\Controllers;
 
 use App\Models\Ann;
 use App\Models\Config;
-use App\Models\InviteCode;
 use App\Models\LoginIp;
 use App\Models\Node;
 use App\Models\OnlineLog;
-use App\Models\Payback;
 use App\Services\Auth;
 use App\Services\Captcha;
+use App\Services\Reward;
+use App\Services\Subscribe;
 use App\Utils\ResponseHelper;
 use App\Utils\Tools;
 use Exception;
@@ -28,7 +28,7 @@ final class UserController extends BaseController
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $captcha = [];
         $class_expire_days = $this->user->class > 0 ?
@@ -40,10 +40,10 @@ final class UserController extends BaseController
 
         return $response->write(
             $this->view()
-                ->assign('ann', Ann::orderBy('date', 'desc')->first())
+                ->assign('ann', (new Ann())->orderBy('date', 'desc')->first())
                 ->assign('captcha', $captcha)
                 ->assign('class_expire_days', $class_expire_days)
-                ->assign('UniversalSub', SubController::getUniversalSubLink($this->user))
+                ->assign('UniversalSub', Subscribe::getUniversalSubLink($this->user))
                 ->fetch('user/index.tpl')
         );
     }
@@ -51,12 +51,12 @@ final class UserController extends BaseController
     /**
      * @throws Exception
      */
-    public function profile(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function profile(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         // 登录IP
-        $logins = LoginIp::where('userid', $this->user->id)
+        $logins = (new LoginIp())->where('userid', $this->user->id)
             ->where('type', '=', 0)->orderBy('datetime', 'desc')->take(10)->get();
-        $ips = OnlineLog::where('user_id', $this->user->id)
+        $ips = (new OnlineLog())->where('user_id', $this->user->id)
             ->where('last_time', '>', time() - 90)->orderByDesc('last_time')->get();
 
         foreach ($logins as $login) {
@@ -72,7 +72,7 @@ final class UserController extends BaseController
         foreach ($ips as $ip) {
             $ip->ip = str_replace('::ffff:', '', $ip->ip);
             $ip->location = Tools::getIpLocation($ip->ip);
-            $ip->node_name = Node::where('id', $ip->node_id)->first()->name;
+            $ip->node_name = (new Node())->where('id', $ip->node_id)->first()->name;
             $ip->last_time = Tools::toDateTime((int) $ip->last_time);
         }
 
@@ -87,9 +87,9 @@ final class UserController extends BaseController
     /**
      * @throws Exception
      */
-    public function announcement(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function announcement(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $anns = Ann::orderBy('date', 'desc')->get();
+        $anns = (new Ann())->orderBy('date', 'desc')->get();
 
         return $response->write(
             $this->view()
@@ -98,45 +98,9 @@ final class UserController extends BaseController
         );
     }
 
-    /**
-     * @throws Exception
-     */
-    public function invite(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function checkin(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $code = InviteCode::where('user_id', $this->user->id)->first()?->code;
-
-        if ($code === null) {
-            $code = $this->user->addInviteCode();
-        }
-
-        $paybacks = Payback::where('ref_by', $this->user->id)
-            ->orderBy('id', 'desc')
-            ->get();
-
-        foreach ($paybacks as $payback) {
-            $payback->datetime = Tools::toDateTime($payback->datetime);
-        }
-
-        $paybacks_sum = Payback::where('ref_by', $this->user->id)->sum('ref_get');
-
-        if (! $paybacks_sum) {
-            $paybacks_sum = 0;
-        }
-
-        $invite_url = $_ENV['baseUrl'] . '/auth/register?code=' . $code;
-        $rebate_ratio_per = Config::obtain('rebate_ratio') * 100;
-
-        return $response->write($this->view()
-            ->assign('paybacks', $paybacks)
-            ->assign('invite_url', $invite_url)
-            ->assign('paybacks_sum', $paybacks_sum)
-            ->assign('rebate_ratio_per', $rebate_ratio_per)
-            ->fetch('user/invite.tpl'));
-    }
-
-    public function checkin(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
-    {
-        if (! $_ENV['enable_checkin']) {
+        if (! Config::obtain('enable_checkin') || ! $this->user->isAbleToCheckin()) {
             return ResponseHelper::error($response, '暂时还不能签到');
         }
 
@@ -148,19 +112,22 @@ final class UserController extends BaseController
             }
         }
 
-        $checkin = $this->user->checkin();
+        $traffic = Reward::issueCheckinReward($this->user->id);
 
-        if (! $checkin['ok']) {
-            return ResponseHelper::error($response, (string) $checkin['msg']);
+        if (! $traffic) {
+            return ResponseHelper::error($response, '签到失败');
         }
 
-        return $response->withHeader('HX-Refresh', 'true')->withJson([
+        return $response->withJson([
             'ret' => 1,
-            'msg' => $checkin['msg'],
+            'msg' => '获得了 ' . $traffic . 'MB 流量',
+            'data' => [
+                'last-checkin-time' => Tools::toDateTime(time()),
+            ],
         ]);
     }
 
-    public function switchThemeMode(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function switchThemeMode(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $user = $this->user;
         $user->is_dark_mode = $user->is_dark_mode === 1 ? 0 : 1;
@@ -178,13 +145,15 @@ final class UserController extends BaseController
     /**
      * @throws Exception
      */
-    public function banned(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function banned(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $user = $this->user;
 
-        return $response->write($this->view()
-            ->assign('banned_reason', $user->banned_reason)
-            ->fetch('user/banned.tpl'));
+        return $response->write(
+            $this->view()
+                ->assign('banned_reason', $user->banned_reason)
+                ->fetch('user/banned.tpl')
+        );
     }
 
     public function logout(ServerRequest $request, Response $response, array $args): Response

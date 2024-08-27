@@ -32,8 +32,6 @@ final class ClientDownload extends Command
     private array $version;
 
     /**
-     * @return void
-     *
      * @throws GuzzleException
      */
     public function boot(): void
@@ -64,12 +62,6 @@ final class ClientDownload extends Command
 
     /**
      * 下载远程文件
-     *
-     * @param string $fileName
-     * @param string $savePath
-     * @param string $url
-     *
-     * @return bool
      */
     private function getSourceFile(string $fileName, string $savePath, string $url): bool
     {
@@ -102,10 +94,6 @@ final class ClientDownload extends Command
     /**
      * 获取 GitHub 常规 Release
      *
-     * @param string $repo
-     *
-     * @return string
-     *
      * @throws GuzzleException
      */
     private function getLatestReleaseTagName(string $repo): string
@@ -122,10 +110,6 @@ final class ClientDownload extends Command
 
     /**
      * 获取 GitHub Pre-Release
-     *
-     * @param string $repo
-     *
-     * @return string
      *
      * @throws GuzzleException
      */
@@ -184,8 +168,6 @@ final class ClientDownload extends Command
      * 储存本地软体版本库
      *
      * @param array $versions
-     *
-     * @return void
      */
     private function setLocalVersions(array $versions): void
     {
@@ -200,13 +182,6 @@ final class ClientDownload extends Command
         );
     }
 
-    /**
-     * @param $name
-     * @param $taskName
-     * @param $tagName
-     *
-     * @return array|string
-     */
     private static function getNames($name, $taskName, $tagName): array|string
     {
         return str_replace(
@@ -226,8 +201,6 @@ final class ClientDownload extends Command
 
     /**
      * @param array $task
-     *
-     * @return void
      *
      * @throws GuzzleException
      */

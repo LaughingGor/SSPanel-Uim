@@ -15,7 +15,6 @@ use Exception;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response;
 use Slim\Http\ServerRequest;
-use voku\helper\AntiXSS;
 use function explode;
 use function in_array;
 use function json_decode;
@@ -40,12 +39,10 @@ final class OrderController extends BaseController
         ],
     ];
 
-    private static string $err_msg = '订单创建失败';
-
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         return $response->write(
             $this->view()
@@ -57,10 +54,9 @@ final class OrderController extends BaseController
     /**
      * @throws Exception
      */
-    public function create(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function create(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $antiXss = new AntiXSS();
-        $product_id = $antiXss->xss_clean($request->getQueryParams()['product_id']) ?? null;
+        $product_id = $this->antiXss->xss_clean($request->getQueryParams()['product_id']) ?? null;
         $redir = Cookie::get('redir');
 
         if ($redir !== null) {
@@ -71,7 +67,7 @@ final class OrderController extends BaseController
             return $response->withRedirect('/user/product');
         }
 
-        $product = Product::where('id', $product_id)->first();
+        $product = (new Product())->where('id', $product_id)->first();
         $product->type_text = $product->type();
         $product->content = json_decode($product->content);
 
@@ -85,12 +81,11 @@ final class OrderController extends BaseController
     /**
      * @throws Exception
      */
-    public function detail(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function detail(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $antiXss = new AntiXSS();
-        $id = $antiXss->xss_clean($args['id']);
+        $id = $this->antiXss->xss_clean($args['id']);
 
-        $order = Order::where('user_id', $this->user->id)->where('id', $id)->first();
+        $order = (new Order())->where('user_id', $this->user->id)->where('id', $id)->first();
 
         if ($order === null) {
             return $response->withRedirect('/user/order');
@@ -102,7 +97,7 @@ final class OrderController extends BaseController
         $order->update_time = Tools::toDateTime($order->update_time);
         $order->content = json_decode($order->product_content);
 
-        $invoice = Invoice::where('order_id', $id)->first();
+        $invoice = (new Invoice())->where('order_id', $id)->first();
         $invoice->status = $invoice->status();
         $invoice->create_time = Tools::toDateTime($invoice->create_time);
         $invoice->update_time = Tools::toDateTime($invoice->update_time);
@@ -117,18 +112,17 @@ final class OrderController extends BaseController
         );
     }
 
-    public function process(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function process(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $antiXss = new AntiXSS();
-        $coupon_raw = $antiXss->xss_clean($request->getParam('coupon'));
-        $product_id = $antiXss->xss_clean($request->getParam('product_id'));
+        $coupon_raw = $this->antiXss->xss_clean($request->getParam('coupon'));
+        $product_id = $this->antiXss->xss_clean($request->getParam('product_id'));
 
-        $product = Product::find($product_id);
+        $product = (new Product())->find($product_id);
 
         if ($product === null || $product->stock === 0) {
             return $response->withJson([
                 'ret' => 0,
-                'msg' => self::$err_msg,
+                'msg' => '商品不存在或库存不足',
             ]);
         }
 
@@ -138,17 +132,17 @@ final class OrderController extends BaseController
         if ($user->is_shadow_banned) {
             return $response->withJson([
                 'ret' => 0,
-                'msg' => self::$err_msg,
+                'msg' => '商品不存在或库存不足',
             ]);
         }
 
         if ($coupon_raw !== '') {
-            $coupon = UserCoupon::where('code', $coupon_raw)->first();
+            $coupon = (new UserCoupon())->where('code', $coupon_raw)->first();
 
             if ($coupon === null || ($coupon->expire_time !== 0 && $coupon->expire_time < time())) {
                 return $response->withJson([
                     'ret' => 0,
-                    'msg' => self::$err_msg,
+                    'msg' => '优惠码不存在或已过期',
                 ]);
             }
 
@@ -157,25 +151,25 @@ final class OrderController extends BaseController
             if ($coupon_limit->disabled) {
                 return $response->withJson([
                     'ret' => 0,
-                    'msg' => self::$err_msg,
+                    'msg' => '优惠码已被禁用',
                 ]);
             }
 
             if ($coupon_limit->product_id !== '' && ! in_array($product_id, explode(',', $coupon_limit->product_id))) {
                 return $response->withJson([
                     'ret' => 0,
-                    'msg' => self::$err_msg,
+                    'msg' => '优惠码不适用于此商品',
                 ]);
             }
 
             $coupon_use_limit = $coupon_limit->use_time;
 
             if ($coupon_use_limit > 0) {
-                $user_use_count = Order::where('user_id', $user->id)->where('coupon', $coupon->code)->count();
+                $user_use_count = (new Order())->where('user_id', $user->id)->where('coupon', $coupon->code)->count();
                 if ($user_use_count >= $coupon_use_limit) {
                     return $response->withJson([
                         'ret' => 0,
-                        'msg' => self::$err_msg,
+                        'msg' => '优惠码使用次数已达上限',
                     ]);
                 }
             }
@@ -189,7 +183,7 @@ final class OrderController extends BaseController
             if ($coupon_total_use_limit > 0 && $coupon->use_count >= $coupon_total_use_limit) {
                 return $response->withJson([
                     'ret' => 0,
-                    'msg' => self::$err_msg,
+                    'msg' => '优惠码使用次数已达上限',
                 ]);
             }
 
@@ -206,27 +200,27 @@ final class OrderController extends BaseController
 
         $product_limit = json_decode($product->limit);
 
-        if ($product_limit->class_required !== '' && (int) $user->class < (int) $product_limit->class_required) {
+        if ($product_limit->class_required !== '' && $user->class < (int) $product_limit->class_required) {
             return $response->withJson([
                 'ret' => 0,
-                'msg' => self::$err_msg,
+                'msg' => '您的账户等级不足，无法购买此商品',
             ]);
         }
 
         if ($product_limit->node_group_required !== ''
-            && (int) $user->node_group !== (int) $product_limit->node_group_required) {
+            && $user->node_group !== (int) $product_limit->node_group_required) {
             return $response->withJson([
                 'ret' => 0,
-                'msg' => self::$err_msg,
+                'msg' => '您所在的用户组无法购买此商品',
             ]);
         }
 
         if ($product_limit->new_user_required !== 0) {
-            $order_count = Order::where('user_id', $user->id)->count();
+            $order_count = (new Order())->where('user_id', $user->id)->count();
             if ($order_count > 0) {
                 return $response->withJson([
                     'ret' => 0,
-                    'msg' => self::$err_msg,
+                    'msg' => '此商品仅限新用户购买',
                 ]);
             }
         }
@@ -289,15 +283,15 @@ final class OrderController extends BaseController
         ]);
     }
 
-    public function ajax(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function ajax(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $orders = Order::orderBy('id', 'desc')->where('user_id', $this->user->id)->get();
+        $orders = (new Order())->orderBy('id', 'desc')->where('user_id', $this->user->id)->get();
 
         foreach ($orders as $order) {
             $order->op = '<a class="btn btn-blue" href="/user/order/' . $order->id . '/view">查看</a>';
 
             if ($order->status === 'pending_payment') {
-                $invoice_id = Invoice::where('order_id', $order->id)->first()->id;
+                $invoice_id = (new Invoice())->where('order_id', $order->id)->first()->id;
                 $order->op .= '
                 <a class="btn btn-red" href="/user/invoice/' . $invoice_id . '/view">支付</a>';
             }

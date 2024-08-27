@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Config;
-use App\Services\Bot\Telegram\Process;
+use App\Services\Bot\Telegram\Telegram;
 use GuzzleHttp\Exception\GuzzleException;
 use MaxMind\Db\Reader\InvalidDatabaseException;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response;
 use Slim\Http\ServerRequest;
-use SmartyException;
+use Smarty\Exception as SmartyException;
 use Telegram\Bot\Exceptions\TelegramSDKException;
 
 final class CallbackController extends BaseController
@@ -38,12 +38,11 @@ final class CallbackController extends BaseController
         $token = $request->getQueryParam('token');
 
         if (Config::obtain('enable_telegram') && $token === Config::obtain('telegram_request_token')) {
-            Process::index($request);
-            $result = '1';
-        } else {
-            $result = '0';
+            Telegram::process($request);
+
+            return $response->withStatus(204);
         }
 
-        return $response->write($result);
+        return $response->withStatus(400);
     }
 }

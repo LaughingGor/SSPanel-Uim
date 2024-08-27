@@ -13,21 +13,21 @@ use Slim\Http\ServerRequest;
 
 final class FuncController extends BaseController
 {
+    /**
+     * GET /mod_mu/func/ping
+     */
     public function ping(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        return $response->withJson([
-            'ret' => 1,
-            'msg' => 'Pong? Pong!',
-        ]);
+        return ResponseHelper::success($response, 'Pong? Pong!');
     }
 
+    /**
+     * GET /mod_mu/func/detect_rules
+     */
     public function getDetectRules(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $rules = DetectRule::all();
+        $rules = DetectRule::all()->toArray();
 
-        return ResponseHelper::successWithDataEtag($request, $response, [
-            'ret' => 1,
-            'data' => $rules,
-        ]);
+        return ResponseHelper::successWithDataEtag($request, $response, $rules);
     }
 }

@@ -7,33 +7,33 @@ namespace App\Controllers\Admin\Setting;
 use App\Controllers\BaseController;
 use App\Models\Config;
 use Exception;
+use Psr\Http\Message\ResponseInterface;
+use Slim\Http\Response;
+use Slim\Http\ServerRequest;
 
 final class RegController extends BaseController
 {
     private static array $update_field = [
         'reg_mode',
         'reg_email_verify',
-        'sign_up_for_daily_report',
+        'reg_daily_report',
         'random_group',
         'min_port',
         'max_port',
-        'sign_up_for_free_traffic',
+        'reg_traffic',
         'free_user_reset_day',
         'free_user_reset_bandwidth',
-        'sign_up_for_class',
-        'sign_up_for_class_time',
-        'sign_up_for_method',
-        'sign_up_for_invitation_codes',
-        'connection_ip_limit',
-        'connection_rate_limit',
-        'reg_forbidden_ip',
-        'reg_forbidden_port',
+        'reg_class',
+        'reg_class_time',
+        'reg_method',
+        'reg_ip_limit',
+        'reg_speed_limit',
     ];
 
     /**
      * @throws Exception
      */
-    public function index($request, $response, $args)
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $settings = Config::getClass('reg');
 
@@ -45,7 +45,7 @@ final class RegController extends BaseController
         );
     }
 
-    public function save($request, $response, $args)
+    public function save(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         foreach (self::$update_field as $item) {
             if (! Config::set($item, $request->getParam($item))) {

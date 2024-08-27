@@ -21,7 +21,6 @@ final class OnlineLogController extends BaseController
             'field' => [
                 'id' => '事件ID',
                 'user_id' => '用户ID',
-                'user_name' => '用户名',
                 'node_id' => '节点ID',
                 'node_name' => '节点名',
                 'ip' => 'IP',
@@ -36,7 +35,7 @@ final class OnlineLogController extends BaseController
      *
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         return $response->write(
             $this->view()
@@ -50,17 +49,38 @@ final class OnlineLogController extends BaseController
      *
      * @throws InvalidDatabaseException
      */
-    public function ajax(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function ajax(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $length = $request->getParam('length');
         $page = $request->getParam('start') / $length + 1;
         $draw = $request->getParam('draw');
 
-        $onlines = OnlineLog::where('last_time', '>', time() - 90)->orderByDesc('last_time')->paginate($length, '*', '', $page);
-        $total = OnlineLog::where('last_time', '>', time() - 90)->count();
+        $online_log = OnlineLog::query()->where('last_time', '>', time() - 90);
+
+        $search = $request->getParam('search')['value'];
+
+        if ($search !== '') {
+            $online_log->where('user_id', '=', $search)
+                ->orWhere('ip', 'LIKE', "%{$search}%")
+                ->orWhere('node_id', '=', $search);
+        }
+
+        $order = $request->getParam('order')[0]['dir'];
+
+        if ($request->getParam('order')[0]['column'] !== '7') {
+            $order_by = $request->getParam('columns')[$request->getParam('order')[0]['column']]['data'];
+
+            $online_log->orderBy($order_by, $order)->orderBy('last_time', 'desc');
+        } else {
+            $online_log->orderBy('last_time', $order);
+        }
+
+        $filtered = $online_log->count();
+        $total = (new OnlineLog())->count();
+
+        $onlines = $online_log->paginate($length, '*', '', $page);
 
         foreach ($onlines as $online) {
-            $online->user_name = $online->userName();
             $online->node_name = $online->nodeName();
             $online->ip = $online->ip();
             $online->location = Tools::getIpLocation($online->ip);
@@ -71,7 +91,7 @@ final class OnlineLogController extends BaseController
         return $response->withJson([
             'draw' => $draw,
             'recordsTotal' => $total,
-            'recordsFiltered' => $total,
+            'recordsFiltered' => $filtered,
             'onlines' => $onlines,
         ]);
     }

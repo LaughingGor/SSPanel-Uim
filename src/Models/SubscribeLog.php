@@ -9,7 +9,6 @@ use App\Utils\Tools;
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Query\Builder;
-use MaxMind\Db\Reader\InvalidDatabaseException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Telegram\Bot\Exceptions\TelegramSDKException;
 use function time;
@@ -34,7 +33,7 @@ final class SubscribeLog extends Model
      */
     public function user(): ?User
     {
-        return User::find($this->user_id);
+        return (new User())->find($this->user_id);
     }
 
     /**
@@ -44,7 +43,7 @@ final class SubscribeLog extends Model
     {
         try {
             return Tools::getIpLocation($this->request_ip);
-        } catch (InvalidDatabaseException|Exception $e) {
+        } catch (Exception) {
             return '未知';
         }
     }
@@ -61,7 +60,7 @@ final class SubscribeLog extends Model
         $this->request_time = time();
 
         if (Config::obtain('notify_new_subscribe') &&
-            SubscribeLog::where('user_id', $this->user_id)
+            (new SubscribeLog())->where('user_id', $this->user_id)
                 ->where('request_ip', 'like', '%' . $this->request_ip . '%')
                 ->count() === 0
         ) {

@@ -80,7 +80,6 @@ return new class() implements MigrationInterface {
         ALTER TABLE node MODIFY COLUMN `bandwidthlimit_resetday` tinyint(2) unsigned NOT NULL DEFAULT 0 COMMENT '流量重置日';
         ALTER TABLE node MODIFY COLUMN `node_heartbeat` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '节点心跳';
         ALTER TABLE node MODIFY COLUMN `online_user` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '节点在线用户';
-        ALTER TABLE node MODIFY COLUMN `node_ip` varchar(255) NOT NULL DEFAULT '' COMMENT '节点IP';
         ALTER TABLE node MODIFY COLUMN `node_group` smallint(5) unsigned NOT NULL DEFAULT 0 COMMENT '节点群组';
         ALTER TABLE node MODIFY COLUMN `online` tinyint(1) NOT NULL DEFAULT 1 COMMENT '在线状态';
         ALTER TABLE node MODIFY COLUMN `gfw_block` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '是否被GFW封锁';
@@ -153,11 +152,6 @@ return new class() implements MigrationInterface {
         ALTER TABLE user_coupon MODIFY COLUMN `use_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '累计使用次数';
         ALTER TABLE user_coupon MODIFY COLUMN `create_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '创建时间';
         ALTER TABLE user_coupon MODIFY COLUMN `expire_time` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '过期时间';
-        ALTER TABLE user_hourly_usage MODIFY COLUMN `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '记录ID';
-        ALTER TABLE user_hourly_usage MODIFY COLUMN `user_id` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT '用户ID';
-        ALTER TABLE user_hourly_usage MODIFY COLUMN `traffic` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT '当前总流量';
-        ALTER TABLE user_hourly_usage MODIFY COLUMN `hourly_usage` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT '过去一小时流量';
-        ALTER TABLE user_hourly_usage MODIFY COLUMN `datetime` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '记录时间';
         ALTER TABLE user_invite_code MODIFY COLUMN `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '记录ID';
         ALTER TABLE user_invite_code MODIFY COLUMN `code` varchar(255) NOT NULL DEFAULT '' COMMENT '邀请码';
         ALTER TABLE user_invite_code MODIFY COLUMN `user_id` bigint(20) unsigned NOT NULL DEFAULT 0 COMMENT '用户ID';

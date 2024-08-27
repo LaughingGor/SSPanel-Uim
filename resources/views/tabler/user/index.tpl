@@ -1,7 +1,5 @@
 {include file='user/header.tpl'}
 
-<script src="//{$config['jsdelivr_url']}/npm/clipboard@latest/dist/clipboard.min.js"></script>
-
 <div class="page-wrapper">
     <div class="container-xl">
         <div class="page-header d-print-none text-white">
@@ -78,7 +76,7 @@
                                 <div class="card-body">
                                     <div class="row align-items-center">
                                         <div class="col-auto">
-                                            <span class="bg-twitter text-white avatar">
+                                            <span class="bg-azure text-white avatar">
                                                 <i class="ti ti-devices-pc icon"></i>
                                             </span>
                                         </div>
@@ -103,7 +101,7 @@
                                 <div class="card-body">
                                     <div class="row align-items-center">
                                         <div class="col-auto">
-                                            <span class="bg-facebook text-white avatar">
+                                            <span class="bg-indigo text-white avatar">
                                                 <i class="ti ti-rocket icon"></i>
                                             </span>
                                         </div>
@@ -191,6 +189,9 @@
                                         <p>
                                             通用订阅（sing-box）：<code>{$UniversalSub}/singbox</code>
                                         </p>
+                                        <p>
+                                            通用订阅（v2rayjson）：<code>{$UniversalSub}/v2rayjson</code>
+                                        </p>
                                         {if $public_setting['enable_ss_sub']}
                                             <p>
                                                 通用订阅（sip008）：<code>{$UniversalSub}/sip008</code>
@@ -208,6 +209,10 @@
                                             <a data-clipboard-text="{$UniversalSub}/singbox"
                                                class="copy btn btn-primary">
                                                 复制通用订阅（sing-box）
+                                            </a>
+                                            <a data-clipboard-text="{$UniversalSub}/v2rayjson"
+                                               class="copy btn btn-primary">
+                                                复制通用订阅（v2rayjson）
                                             </a>
                                             {if $public_setting['enable_ss_sub']}
                                                 <a data-clipboard-text="{$UniversalSub}/sip008"
@@ -338,6 +343,13 @@
                                         适用于 sing-box 的订阅：<code>{$UniversalSub}/singbox</code>
                                     </p>
                                     <div class="btn-list justify-content-start">
+                                        <a {if $config['enable_r2_client_download']}
+                                            href="/user/clients/CMFA.apk"
+                                        {else}
+                                            href="/clients/CMFA.apk"
+                                        {/if} class="btn btn-azure">
+                                            下载 Clash.Meta For Android
+                                        </a>
                                         <a data-clipboard-text="{$UniversalSub}/clash"
                                            class="copy btn btn-primary">
                                             复制 Clash 订阅链接
@@ -367,25 +379,8 @@
                                 </div>
                                 <div class="tab-pane" id="ios">
                                     <p>
-                                        适用于 Clash 兼容客户端的订阅：<code>{$UniversalSub}/clash</code>
-                                    </p>
-                                    <p>
                                         适用于 sing-box 的订阅：<code>{$UniversalSub}/singbox</code>
                                     </p>
-                                    <div class="btn-list justify-content-start">
-                                        <a href="https://apps.apple.com/app/stash/id1596063349" target="_blank"
-                                           class="btn btn-azure">
-                                            购买 Stash
-                                        </a>
-                                        <a data-clipboard-text="{$UniversalSub}/clash"
-                                           class="copy btn btn-primary">
-                                            复制 Clash 订阅链接
-                                        </a>
-                                        <a href="stash://install-config?url={$UniversalSub}/clash&name={$config['appName']}"
-                                           class="btn btn-indigo">
-                                            导入 Stash
-                                        </a>
-                                    </div>
                                     <div class="btn-list justify-content-start my-2">
                                         <a href="https://apps.apple.com/app/sing-box/id6451272673" target="_blank"
                                            class="btn btn-azure">
@@ -519,7 +514,7 @@
                         </div>
                     </div>
                 </div>
-                {if $config['enable_checkin']}
+                {if $public_setting['enable_checkin']}
                     <div class="col-lg-6 col-sm-12">
                         <div class="card">
                             <div class="card-stamp">
@@ -531,18 +526,18 @@
                                 <h3 class="card-title">每日签到</h3>
                                 <p>
                                     签到可领取
-                                    {if $config['checkinMin'] !== $config['checkinMax']}
+                                    {if $public_setting['checkin_min'] !== $public_setting['checkin_max']}
                                         &nbsp;
-                                        <code>{$config['checkinMin']} MB</code>
+                                        <code>{$public_setting['checkin_min']} MB</code>
                                         至
-                                        <code>{$config['checkinMax']} MB</code>
+                                        <code>{$public_setting['checkin_max']} MB</code>
                                         范围内的流量
                                     {else}
-                                        <code>{$config['checkinMin']} MB</code>
+                                        <code>{$public_setting['checkin_min']} MB</code>
                                     {/if}
                                 </p>
                                 <p>
-                                    上次签到时间：<code>{$user->lastCheckInTime()}</code>
+                                    上次签到时间：<code id="last-checkin-time">{$user->lastCheckInTime()}</code>
                                 </p>
                             </div>
                             <div class="card-footer">
@@ -551,28 +546,14 @@
                                         <button id="check-in" class="btn btn-primary ms-auto" disabled>已签到</button>
                                     {else}
                                         {if $public_setting['enable_checkin_captcha']}
-                                            {if $public_setting['captcha_provider'] === 'turnstile'}
-                                                <div id="cf-turnstile" class="cf-turnstile"
-                                                     data-sitekey="{$captcha['turnstile_sitekey']}"
-                                                        {if $user->is_dark_mode}
-                                                            data-theme="dark"
-                                                        {else}
-                                                            data-theme="light"
-                                                        {/if}
-                                                ></div>
-                                            {/if}
-                                            {if $public_setting['captcha_provider'] === 'geetest'}
-                                                <div id="geetest"></div>
-                                            {/if}
+                                            {include file='captcha/div.tpl'}
                                         {/if}
                                         <button id="check-in" class="btn btn-primary ms-auto"
-                                                hx-post="/user/checkin" hx-swap="none"
-                                                {if $public_setting['captcha_provider'] === 'turnstile'}
-                                                    hx-vals='js:{ turnstile: document.querySelector("[name=cf-turnstile-response]").value }'
+                                                hx-post="/user/checkin" hx-swap="none" hx-vals='js:{
+                                                {if $public_setting['enable_checkin_captcha']}
+                                                    {include file='captcha/ajax.tpl'}
                                                 {/if}
-                                                {if $public_setting['captcha_provider'] === 'geetest'}
-                                                    hx-vals='js:{ geetest: geetest_result }'
-                                                {/if}>
+                                                }'>
                                             签到
                                         </button>
                                     {/if}
@@ -585,34 +566,8 @@
         </div>
     </div>
 
-    <script>
-        let clipboard = new ClipboardJS('.copy');
-        clipboard.on('success', function (e) {
-            $('#success-message').text('已复制到剪切板');
-            $('#success-dialog').modal('show');
-        });
-    </script>
-
     {if $public_setting['enable_checkin_captcha'] && $user->isAbleToCheckin()}
-    {if $public_setting['captcha_provider'] === 'turnstile'}
-        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+        {include file='captcha/js.tpl'}
     {/if}
-    {if $public_setting['captcha_provider'] === 'geetest'}
-        <script src="https://static.geetest.com/v4/gt4.js"></script>
-        <script>
-            let geetest_result = '';
-            initGeetest4({
-                captchaId: '{$captcha['geetest_id']}',
-                product: 'float',
-                language: "zho",
-                riskType: 'slide'
-            }, function (geetest) {
-                geetest.appendTo("#geetest");
-                geetest.onSuccess(function () {
-                    geetest_result = geetest.getValidate();
-                });
-            });
-        </script>
-    {/if}
-    {/if}
+
     {include file='user/footer.tpl'}

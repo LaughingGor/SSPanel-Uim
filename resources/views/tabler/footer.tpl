@@ -48,6 +48,31 @@
 
 <script src="//{$config['jsdelivr_url']}/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
 
+<script>
+    htmx.on("htmx:afterRequest", function(evt) {
+        if (evt.detail.xhr.getResponseHeader('HX-Redirect'))
+        {
+            return;
+        }
+
+        let res = JSON.parse(evt.detail.xhr.response);
+        let successDialog = new bootstrap.Modal(document.getElementById('success-dialog'));
+        let failDialog = new bootstrap.Modal(document.getElementById('fail-dialog'));
+
+        if (evt.detail.elt.id === 'send-verify-email') {
+            document.getElementById('send-verify-email').disabled = true;
+        }
+
+        if (res.ret === 1) {
+            document.getElementById("success-message").innerHTML = res.msg;
+            successDialog.show();
+        } else {
+            document.getElementById("fail-message").innerHTML = res.msg;
+            failDialog.show();
+        }
+    });
+</script>
+
 {include file='live_chat.tpl'}
 
 </body>

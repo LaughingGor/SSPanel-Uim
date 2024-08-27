@@ -6,17 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"/>
     <meta name="format-detection" content="telephone=no"/>
-    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>{$config['appName']}</title>
     <!-- CSS files -->
     <link href="//{$config['jsdelivr_url']}/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
     <link href="//{$config['jsdelivr_url']}/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" rel="stylesheet"/>
-    <link href="//cdn.datatables.net/v/bs5/dt-1.13.7/datatables.min.css" rel="stylesheet"/>
     <!-- JS files -->
     <script src="//{$config['jsdelivr_url']}/npm/qrcode_js@latest/qrcode.min.js"></script>
     <script src="//{$config['jsdelivr_url']}/npm/clipboard@latest/dist/clipboard.min.js"></script>
     <script src="//{$config['jsdelivr_url']}/npm/jquery/dist/jquery.min.js"></script>
-    <script src="//cdn.datatables.net/v/bs5/dt-1.13.7/datatables.min.js"></script>
+    <script src="//{$config['jsdelivr_url']}/npm/htmx.org@latest/dist/htmx.min.js"></script>
     <style>
         .home-subtitle {
             font-size: 14px;
@@ -56,9 +54,13 @@
                     </a>
                     <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                         {if $user->is_dark_mode}
-                            <a id="switch_theme_mode" class="dropdown-item">浅色模式</a>
+                            <a class="dropdown-item" hx-post="/user/switch_theme_mode" hx-swap="none">
+                                浅色模式
+                            </a>
                         {else}
-                            <a id="switch_theme_mode" class="dropdown-item">深色模式</a>
+                            <a class="dropdown-item" hx-post="/user/switch_theme_mode" hx-swap="none">
+                                深色模式
+                            </a>
                         {/if}
                         <a href="/user/logout" class="dropdown-item">登出</a>
                     </div>
@@ -189,9 +191,9 @@
                                     <i class="ti ti-rss"></i>&nbsp;
                                     订阅
                                 </a>
-                                <a class="dropdown-item" href="/admin/invite">
+                                <a class="dropdown-item" href="/admin/payback">
                                     <i class="ti ti-friends"></i>&nbsp;
-                                    邀请
+                                    返利
                                 </a>
                                 <a class="dropdown-item" href="/admin/money">
                                     <i class="ti ti-coin"></i>&nbsp;
@@ -204,10 +206,6 @@
                                 <a class="dropdown-item" href="/admin/online">
                                     <i class="ti ti-router"></i>&nbsp;
                                     在线IP
-                                </a>
-                                <a class="dropdown-item" href="/admin/traffic">
-                                    <i class="ti ti-arrows-up-down"></i>&nbsp;
-                                    流量使用
                                 </a>
                             </div>
                         </li>

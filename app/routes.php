@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use App\Middleware\Admin;
-use App\Middleware\Auth;
 use App\Middleware\Guest;
 use App\Middleware\NodeToken;
+use App\Middleware\User;
 use Slim\Routing\RouteCollectorProxy;
 
 return static function (Slim\App $app): void {
@@ -23,8 +23,9 @@ return static function (Slim\App $app): void {
     $app->post('/oauth/{type}', App\Controllers\OAuthController::class . ':index');
     $app->get('/oauth/{type}', App\Controllers\OAuthController::class . ':index');
     // 通用订阅
-    $app->get('/sub/{token}/{subtype}', App\Controllers\SubController::class . ':getUniversalSubContent');
-    // User Center
+    $app->get('/sub/{token}/{subtype}', App\Controllers\SubController::class . ':index');
+
+    // User
     $app->group('/user', static function (RouteCollectorProxy $group): void {
         $group->get('', App\Controllers\UserController::class . ':index');
         $group->get('/', App\Controllers\UserController::class . ':index');
@@ -37,7 +38,9 @@ return static function (Slim\App $app): void {
         $group->get('/docs/{id:[0-9]+}/view', App\Controllers\User\DocsController::class . ':detail');
         // 个人资料
         $group->get('/profile', App\Controllers\UserController::class . ':profile');
-        $group->get('/invite', App\Controllers\UserController::class . ':invite');
+        // Invite
+        $group->get('/invite', App\Controllers\User\InviteController::class . ':index');
+        $group->post('/invite/reset', App\Controllers\User\InviteController::class . ':reset');
         // 封禁
         $group->get('/banned', App\Controllers\UserController::class . ':banned');
         // 节点
@@ -45,9 +48,8 @@ return static function (Slim\App $app): void {
         // 动态倍率
         $group->get('/rate', App\Controllers\User\RateController::class . ':index');
         $group->post('/rate', App\Controllers\User\RateController::class . ':ajax');
-        // 审计规则
+        // 审计
         $group->get('/detect', App\Controllers\User\DetectRuleController::class . ':index');
-        // 审计记录
         $group->get('/detect/log', App\Controllers\User\DetectLogController::class . ':index');
         // 工单
         $group->get('/ticket', App\Controllers\User\TicketController::class . ':index');
@@ -65,7 +67,6 @@ return static function (Slim\App $app): void {
         $group->post('/apitoken_reset', App\Controllers\User\InfoController::class . ':resetApiToken');
         $group->post('/method', App\Controllers\User\InfoController::class . ':updateMethod');
         $group->post('/url_reset', App\Controllers\User\InfoController::class . ':resetURL');
-        $group->post('/invite_reset', App\Controllers\User\InfoController::class . ':resetInviteURL');
         $group->post('/daily_mail', App\Controllers\User\InfoController::class . ':updateDailyMail');
         $group->post('/contact_method', App\Controllers\User\InfoController::class . ':updateContactMethod');
         $group->post('/theme', App\Controllers\User\InfoController::class . ':updateTheme');
@@ -80,6 +81,8 @@ return static function (Slim\App $app): void {
         $group->post('/switch_theme_mode', App\Controllers\UserController::class . ':switchThemeMode');
         // 订阅记录
         $group->get('/subscribe', App\Controllers\User\SubLogController::class . ':index');
+        // 流量记录
+        $group->get('/traffic', App\Controllers\User\TrafficLogController::class . ':index');
         // 账户余额
         $group->get('/money', App\Controllers\User\MoneyController::class . ':index');
         $group->post('/giftcard', App\Controllers\User\MoneyController::class . ':applyGiftCard');
@@ -106,7 +109,7 @@ return static function (Slim\App $app): void {
         $group->get('/clients/{name}', App\Controllers\User\ClientController::class . ':getClients');
         // 登出
         $group->get('/logout', App\Controllers\UserController::class . ':logout');
-    })->add(new Auth());
+    })->add(new User());
 
     $app->group('/payment', static function (RouteCollectorProxy $group): void {
         $group->get('/notify/{type}', App\Services\Payment::class . ':notify');
@@ -141,7 +144,14 @@ return static function (Slim\App $app): void {
         $group->get('/node/create', App\Controllers\Admin\NodeController::class . ':create');
         $group->post('/node', App\Controllers\Admin\NodeController::class . ':add');
         $group->get('/node/{id:[0-9]+}/edit', App\Controllers\Admin\NodeController::class . ':edit');
-        $group->post('/node/{id:[0-9]+}/reset', App\Controllers\Admin\NodeController::class . ':reset');
+        $group->post(
+            '/node/{id:[0-9]+}/reset_password',
+            App\Controllers\Admin\NodeController::class . ':resetPassword'
+        );
+        $group->post(
+            '/node/{id:[0-9]+}/reset_bandwidth',
+            App\Controllers\Admin\NodeController::class . ':resetBandwidth'
+        );
         $group->post('/node/{id:[0-9]+}/copy', App\Controllers\Admin\NodeController::class . ':copy');
         $group->put('/node/{id:[0-9]+}', App\Controllers\Admin\NodeController::class . ':update');
         $group->delete('/node/{id:[0-9]+}', App\Controllers\Admin\NodeController::class . ':delete');
@@ -172,7 +182,7 @@ return static function (Slim\App $app): void {
         $group->put('/docs/{id:[0-9]+}', App\Controllers\Admin\DocsController::class . ':update');
         $group->delete('/docs/{id:[0-9]+}', App\Controllers\Admin\DocsController::class . ':delete');
         $group->post('/docs/ajax', App\Controllers\Admin\DocsController::class . ':ajax');
-        // 审计
+        // 审计规则
         $group->get('/detect', App\Controllers\Admin\DetectRuleController::class . ':index');
         $group->get('/detect/create', App\Controllers\Admin\DetectRuleController::class . ':create');
         $group->post('/detect/add', App\Controllers\Admin\DetectRuleController::class . ':add');
@@ -182,8 +192,8 @@ return static function (Slim\App $app): void {
         $group->get('/detect/log', App\Controllers\Admin\DetectLogController::class . ':index');
         $group->post('/detect/log/ajax', App\Controllers\Admin\DetectLogController::class . ':ajax');
         // 审计封禁日志
-        $group->get('/detect/ban', App\Controllers\Admin\DetectBanController::class . ':index');
-        $group->post('/detect/ban/ajax', App\Controllers\Admin\DetectBanController::class . ':ajax');
+        $group->get('/detect/ban', App\Controllers\Admin\DetectBanLogController::class . ':index');
+        $group->post('/detect/ban/ajax', App\Controllers\Admin\DetectBanLogController::class . ':ajax');
         // User
         $group->get('/user', App\Controllers\Admin\UserController::class . ':index');
         $group->get('/user/{id:[0-9]+}/edit', App\Controllers\Admin\UserController::class . ':edit');
@@ -206,14 +216,9 @@ return static function (Slim\App $app): void {
         // 订阅日志
         $group->get('/subscribe', App\Controllers\Admin\SubLogController::class . ':index');
         $group->post('/subscribe/ajax', App\Controllers\Admin\SubLogController::class . ':ajax');
-        // 邀请日志
-        $group->get('/invite', App\Controllers\Admin\InviteController::class . ':index');
-        $group->post('/invite/update_invite', App\Controllers\Admin\InviteController::class . ':update');
-        $group->post('/invite/add_invite', App\Controllers\Admin\InviteController::class . ':add');
-        $group->post('/invite/ajax', App\Controllers\Admin\InviteController::class . ':ajax');
-        // 流量日志
-        $group->get('/traffic', App\Controllers\Admin\TrafficLogController::class . ':index');
-        $group->post('/traffic/ajax', App\Controllers\Admin\TrafficLogController::class . ':ajax');
+        // 返利日志
+        $group->get('/payback', App\Controllers\Admin\PaybackController::class . ':index');
+        $group->post('/payback/ajax', App\Controllers\Admin\PaybackController::class . ':ajax');
         // 用户余额日志
         $group->get('/money', App\Controllers\Admin\MoneyLogController::class . ':index');
         $group->post('/money/ajax', App\Controllers\Admin\MoneyLogController::class . ':ajax');
@@ -226,6 +231,10 @@ return static function (Slim\App $app): void {
         // 设置中心
         $group->get('/setting/billing', App\Controllers\Admin\Setting\BillingController::class . ':index');
         $group->post('/setting/billing', App\Controllers\Admin\Setting\BillingController::class . ':save');
+        $group->post(
+            '/setting/billing/set_stripe_webhook',
+            App\Controllers\Admin\Setting\BillingController::class . ':setStripeWebhook'
+        );
         $group->get('/setting/captcha', App\Controllers\Admin\Setting\CaptchaController::class . ':index');
         $group->post('/setting/captcha', App\Controllers\Admin\Setting\CaptchaController::class . ':save');
         $group->get('/setting/cron', App\Controllers\Admin\Setting\CronController::class . ':index');
@@ -245,15 +254,27 @@ return static function (Slim\App $app): void {
         $group->get('/setting/support', App\Controllers\Admin\Setting\SupportController::class . ':index');
         $group->post('/setting/support', App\Controllers\Admin\Setting\SupportController::class . ':save');
         // 设置测试
-        $group->post('/setting/test/email', App\Controllers\Admin\Setting\EmailController::class . ':testEmail');
-        $group->post('/setting/test/telegram', App\Controllers\Admin\Setting\ImController::class . ':testTelegram');
-        $group->post('/setting/test/discord', App\Controllers\Admin\Setting\ImController::class . ':testDiscord');
-        $group->post('/setting/test/slack', App\Controllers\Admin\Setting\ImController::class . ':testSlack');
+        $group->post(
+            '/setting/test/email',
+            App\Controllers\Admin\Setting\EmailController::class . ':testEmail'
+        );
+        $group->post(
+            '/setting/test/telegram',
+            App\Controllers\Admin\Setting\ImController::class . ':testTelegram'
+        );
+        $group->post(
+            '/setting/test/discord',
+            App\Controllers\Admin\Setting\ImController::class . ':testDiscord'
+        );
+        $group->post(
+            '/setting/test/slack',
+            App\Controllers\Admin\Setting\ImController::class . ':testSlack'
+        );
         // 礼品卡
         $group->get('/giftcard', App\Controllers\Admin\GiftCardController::class . ':index');
         $group->post('/giftcard', App\Controllers\Admin\GiftCardController::class . ':add');
         $group->post('/giftcard/ajax', App\Controllers\Admin\GiftCardController::class . ':ajax');
-        $group->delete('/giftcard/{id}', App\Controllers\Admin\GiftCardController::class . ':delete');
+        $group->delete('/giftcard/{id:[0-9]+}', App\Controllers\Admin\GiftCardController::class . ':delete');
         // 商品
         $group->get('/product', App\Controllers\Admin\ProductController::class . ':index');
         $group->get('/product/create', App\Controllers\Admin\ProductController::class . ':create');
@@ -267,7 +288,7 @@ return static function (Slim\App $app): void {
         $group->get('/order', App\Controllers\Admin\OrderController::class . ':index');
         $group->get('/order/{id:[0-9]+}/view', App\Controllers\Admin\OrderController::class . ':detail');
         $group->post('/order/{id:[0-9]+}/cancel', App\Controllers\Admin\OrderController::class . ':cancel');
-        $group->delete('/order/{id}', App\Controllers\Admin\OrderController::class . ':delete');
+        $group->delete('/order/{id:[0-9]+}', App\Controllers\Admin\OrderController::class . ':delete');
         $group->post('/order/ajax', App\Controllers\Admin\OrderController::class . ':ajax');
         // 账单
         $group->get('/invoice', App\Controllers\Admin\InvoiceController::class . ':index');
@@ -276,30 +297,10 @@ return static function (Slim\App $app): void {
         $group->post('/invoice/ajax', App\Controllers\Admin\InvoiceController::class . ':ajax');
     })->add(new Admin());
 
-    // Admin CLI API
-    //$app->group('/admin/api/v1', function (RouteCollectorProxy $group): void {
-    //    $group->post('/{action}', App\Controllers\Api\AdminApiV1Controller::class . ':actionHandler');
-    //})->add(new AdminApi());
-
-    // User CLI API
-    //$app->group('/user/api/v1', function (RouteCollectorProxy $group): void {
-    //    $group->post('/{action}', App\Controllers\Api\UserApiV1Controller::class . ':actionHandler');
-    //})->add(new UserApi());
-
-    // WebAPI V2(Aka Node API V1)
-    //$app->group('/node/api/v1', function (RouteCollectorProxy $group): void {
-    //    $group->get('/info', App\Controllers\Api\NodeApiV1Controller::class . ':info');
-    //    $group->get('/user', App\Controllers\Api\NodeApiV1Controller::class . ':user');
-    //    $group->get('/detect_rule', App\Controllers\Api\NodeApiV1Controller::class . ':detectRule');
-    //    $group->post('/user/traffic', App\Controllers\Api\NodeApiV1Controller::class . ':userTraffic');
-    //    $group->post('/user/online_ip', App\Controllers\Api\NodeApiV1Controller::class . ':userOnlineIp');
-    //    $group->post('/user/detect_log', App\Controllers\Api\NodeApiV1Controller::class . ':userDetectLog');
-    //})->add(new WebApi());
-
     // WebAPI
     $app->group('/mod_mu', static function (RouteCollectorProxy $group): void {
         // 节点
-        $group->get('/nodes/{id}/info', App\Controllers\WebAPI\NodeController::class . ':getInfo');
+        $group->get('/nodes/{id:[0-9]+}/info', App\Controllers\WebAPI\NodeController::class . ':getInfo');
         // 用户
         $group->get('/users', App\Controllers\WebAPI\UserController::class . ':index');
         $group->post('/users/traffic', App\Controllers\WebAPI\UserController::class . ':addTraffic');
@@ -309,4 +310,25 @@ return static function (Slim\App $app): void {
         $group->get('/func/detect_rules', App\Controllers\WebAPI\FuncController::class . ':getDetectRules');
         $group->get('/func/ping', App\Controllers\WebAPI\FuncController::class . ':ping');
     })->add(new NodeToken());
+
+    // Admin REST API
+    //$app->group('/admin/api/v1', function (RouteCollectorProxy $group): void {
+    //    $group->post('/{action}', App\Controllers\Api\AdminApiV1Controller::class . ':actionHandler');
+    //})->add(new AdminApi());
+
+    // User REST API
+    //$app->group('/user/api/v1', function (RouteCollectorProxy $group): void {
+    //    $group->post('/{action}', App\Controllers\Api\UserApiV1Controller::class . ':actionHandler');
+    //})->add(new UserApi());
+
+    // WebAPI V2(Aka Node API V1)
+    //$app->group('/node/api/v1', function (RouteCollectorProxy $group): void {
+    //    $group->put('/heartbeat', App\Controllers\Api\NodeApiV1Controller::class . ':getHeartbeat');
+    //    $group->get('/info', App\Controllers\Api\NodeApiV1Controller::class . ':getInfo');
+    //    $group->get('/user', App\Controllers\Api\NodeApiV1Controller::class . ':getUser');
+    //    $group->get('/detect_rule', App\Controllers\Api\NodeApiV1Controller::class . ':getDetectRule');
+    //    $group->post('/user/traffic', App\Controllers\Api\NodeApiV1Controller::class . ':addUserTraffic');
+    //    $group->post('/user/online_ip', App\Controllers\Api\NodeApiV1Controller::class . ':addUserOnlineIp');
+    //    $group->post('/user/detect_log', App\Controllers\Api\NodeApiV1Controller::class . ':addUserDetectLog');
+    //})->add(new NodeApi());
 };

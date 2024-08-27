@@ -6,19 +6,15 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\AuthController;
 use App\Controllers\BaseController;
+use App\Models\Config;
 use App\Models\User;
 use App\Models\UserMoneyLog;
 use App\Utils\Hash;
 use App\Utils\Tools;
 use Exception;
-use GuzzleHttp\Exception\GuzzleException;
-use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response;
 use Slim\Http\ServerRequest;
-use Telegram\Bot\Exceptions\TelegramSDKException;
-use function str_replace;
-use const PHP_EOL;
 
 final class UserController extends BaseController
 {
@@ -79,7 +75,6 @@ final class UserController extends BaseController
         'banned_reason',
         'is_shadow_banned',
         'transfer_enable',
-        'invite_num',
         'ref_by',
         'class_expire',
         'node_group',
@@ -91,14 +86,12 @@ final class UserController extends BaseController
         'port',
         'passwd',
         'method',
-        'forbidden_ip',
-        'forbidden_port',
     ];
 
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         return $response->write(
             $this->view()
@@ -108,17 +101,9 @@ final class UserController extends BaseController
     }
 
     /**
-     * @param ServerRequest $request
-     * @param Response $response
-     * @param array $args
-     *
-     * @return Response|ResponseInterface
-     *
-     * @throws GuzzleException
-     * @throws ClientExceptionInterface
-     * @throws TelegramSDKException
+     * @throws Exception
      */
-    public function create(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function create(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $email = $request->getParam('email');
         $ref_by = $request->getParam('ref_by');
@@ -132,7 +117,7 @@ final class UserController extends BaseController
             ]);
         }
 
-        $exist = User::where('email', $email)->first();
+        $exist = (new User())->where('email', $email)->first();
 
         if ($exist !== null) {
             return $response->withJson([
@@ -145,8 +130,8 @@ final class UserController extends BaseController
             $password = Tools::genRandomChar(16);
         }
 
-        AuthController::registerHelper($response, 'user', $email, $password, '', 0, '', $balance, 1);
-        $user = User::where('email', $email)->first();
+        (new AuthController())->registerHelper($response, 'user', $email, $password, '', 0, '', $balance, 1);
+        $user = (new User())->where('email', $email)->first();
 
         if ($ref_by !== '') {
             $user->ref_by = (int) $ref_by;
@@ -155,16 +140,16 @@ final class UserController extends BaseController
 
         return $response->withJson([
             'ret' => 1,
-            'msg' => '添加成功，用户邮箱：'.$email.' 密码：'.$password,
+            'msg' => '添加成功，用户邮箱：' . $email . ' 密码：'.$password,
         ]);
     }
 
     /**
      * @throws Exception
      */
-    public function edit(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function edit(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $user = User::find($args['id']);
+        $user = (new User())->find($args['id']);
 
         return $response->write(
             $this->view()
@@ -174,19 +159,22 @@ final class UserController extends BaseController
         );
     }
 
-    public function update(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function update(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $id = (int) $args['id'];
-        $user = User::find($id);
+        $user = (new User())->find($id);
 
         if ($request->getParam('pass') !== '' && $request->getParam('pass') !== null) {
             $user->pass = Hash::passwordHash($request->getParam('pass'));
-            $user->cleanLink();
+
+            if (Config::obtain('enable_forced_replacement')) {
+                $user->removeLink();
+            }
         }
 
         if ($request->getParam('money') !== '' &&
             $request->getParam('money') !== null &&
-            (float) $request->getParam('money') !== (float) $user->money
+            (float) $request->getParam('money') !== $user->money
         ) {
             $money = (float) $request->getParam('money');
             $diff = $money - $user->money;
@@ -204,7 +192,6 @@ final class UserController extends BaseController
         $user->banned_reason = $request->getParam('banned_reason');
         $user->is_shadow_banned = $request->getParam('is_shadow_banned') === 'true' ? 1 : 0;
         $user->transfer_enable = Tools::autoBytesR($request->getParam('transfer_enable'));
-        $user->invite_num = $request->getParam('invite_num');
         $user->ref_by = $request->getParam('ref_by');
         $user->class_expire = $request->getParam('class_expire');
         $user->node_group = $request->getParam('node_group');
@@ -214,10 +201,7 @@ final class UserController extends BaseController
         $user->node_speedlimit = $request->getParam('node_speedlimit');
         $user->node_iplimit = $request->getParam('node_iplimit');
         $user->port = $request->getParam('port');
-        $user->passwd = $request->getParam('passwd');
         $user->method = $request->getParam('method');
-        $user->forbidden_ip = str_replace(PHP_EOL, ',', $request->getParam('forbidden_ip'));
-        $user->forbidden_port = str_replace(PHP_EOL, ',', $request->getParam('forbidden_port'));
 
         if (! $user->save()) {
             return $response->withJson([
@@ -231,10 +215,10 @@ final class UserController extends BaseController
         ]);
     }
 
-    public function delete(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function delete(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $id = $args['id'];
-        $user = User::find((int) $id);
+        $user = (new User())->find((int) $id);
 
         if (! $user->kill()) {
             return $response->withJson([
@@ -249,9 +233,9 @@ final class UserController extends BaseController
         ]);
     }
 
-    public function ajax(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function ajax(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $users = User::orderBy('id', 'desc')->get();
+        $users = (new User())->orderBy('id', 'desc')->get();
 
         foreach ($users as $user) {
             $user->op = '<button type="button" class="btn btn-red" id="delete-user-' . $user->id . '" 

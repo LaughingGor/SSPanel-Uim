@@ -49,11 +49,6 @@ EOL;
             $jobs->detectNodeOffline();
         }
 
-        // Run traffic log job
-        if ($minute === 0 && Config::obtain('traffic_log')) {
-            $jobs->addTrafficLog();
-        }
-
         // Run daily job
         if ($hour === Config::obtain('daily_job_hour') &&
             $minute === Config::obtain('daily_job_minute') &&
@@ -61,24 +56,28 @@ EOL;
         ) {
             $jobs->cleanDb();
             $jobs->resetNodeBandwidth();
-            $jobs->resetFreeUserTraffic();
+            $jobs->resetFreeUserBandwidth();
             $jobs->sendDailyTrafficReport();
 
             if (Config::obtain('enable_detect_inactive_user')) {
                 $jobs->detectInactiveUser();
             }
 
+            if (Config::obtain('remove_inactive_user_link_and_invite')) {
+                $jobs->removeInactiveUserLinkAndInvite();
+            }
+
             if (Config::obtain('telegram_diary')) {
                 $jobs->sendTelegramDiary();
             }
 
-            $jobs->resetTodayTraffic();
+            $jobs->resetTodayBandwidth();
 
             if (Config::obtain('telegram_daily_job')) {
                 $jobs->sendTelegramDailyJob();
             }
 
-            Config::where('item', 'last_daily_job_time')->update([
+            (new Config())->where('item', 'last_daily_job_time')->update([
                 'value' => mktime(
                     Config::obtain('daily_job_hour'),
                     Config::obtain('daily_job_minute'),

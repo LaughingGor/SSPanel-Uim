@@ -5,19 +5,13 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\IM;
-use App\Utils\Hash;
 use App\Utils\Tools;
-use Exception;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Query\Builder;
-use Ramsey\Uuid\Uuid;
 use Telegram\Bot\Exceptions\TelegramSDKException;
 use function date;
-use function is_null;
-use function md5;
-use function random_int;
+use function hash;
 use function round;
-use function time;
 use const PHP_EOL;
 
 /**
@@ -39,7 +33,6 @@ use const PHP_EOL;
  * @property int    $last_check_in_time 最后签到时间
  * @property int    $last_login_time 最后登录时间
  * @property string $reg_date 注册时间
- * @property int    $invite_num 可用邀请次数
  * @property float  $money 账户余额
  * @property int    $ref_by 邀请人ID
  * @property string $method Shadowsocks加密方式
@@ -63,8 +56,6 @@ use const PHP_EOL;
  * @property int    $is_shadow_banned 是否处于账户异常状态
  * @property int    $expire_notified 过期提醒
  * @property int    $traffic_notified 流量提醒
- * @property string $forbidden_ip 禁止访问IP
- * @property string $forbidden_port 禁止访问端口
  * @property int    $auto_reset_day 自动重置流量日
  * @property float  $auto_reset_bandwidth 自动重置流量
  * @property string $api_token API 密钥
@@ -92,6 +83,7 @@ final class User extends Model
      * @var array
      */
     protected $casts = [
+        'money' => 'float',
         'port' => 'int',
         'node_speedlimit' => 'float',
         'daily_mail_enable' => 'int',
@@ -99,21 +91,19 @@ final class User extends Model
     ];
 
     /**
-     * @param $len
-     *
-     * @return string
-     */
-    public function getSs2022Pk($len): string
-    {
-        return Tools::genSs2022UserPk($this->passwd, $len);
-    }
-
-    /**
      * DiceBear 头像
      */
     public function getDiceBearAttribute(): string
     {
-        return 'https://api.dicebear.com/7.x/identicon/svg?seed=' . md5($this->email);
+        return 'https://api.dicebear.com/8.x/identicon/svg?seed=' . hash('sha3-256', $this->email);
+    }
+
+    /**
+     * User identifier
+     */
+    public function getIdentifierAttribute(): string
+    {
+        return hash('sha3-256', $this->id . ':' . $this->email);
     }
 
     /**
@@ -144,49 +134,6 @@ final class User extends Model
         return $this->last_check_in_time === 0 ? '从未签到' : Tools::toDateTime($this->last_check_in_time);
     }
 
-    /**
-     * 更新密码
-     */
-    public function updatePassword(string $pwd): bool
-    {
-        $this->pass = Hash::passwordHash($pwd);
-
-        return $this->save();
-    }
-
-    /**
-     * 生成邀请码
-     */
-    public function addInviteCode(): string
-    {
-        $code = new InviteCode();
-        $code->code = Tools::genRandomChar(10);
-        $code->user_id = $this->id;
-        $code->save();
-
-        return $code->code;
-    }
-
-    /**
-     * 添加邀请次数
-     */
-    public function addInviteNum(int $num): bool
-    {
-        $this->invite_num += $num;
-
-        return $this->save();
-    }
-
-    /**
-     * 生成新的 API Token
-     */
-    public function generateApiToken(): bool
-    {
-        $this->api_token = Uuid::uuid4();
-
-        return $this->save();
-    }
-
     /*
      * 总流量[自动单位]
      */
@@ -209,17 +156,6 @@ final class User extends Model
     public function totalTraffic(): string
     {
         return Tools::autoBytes($this->transfer_total);
-    }
-
-    /*
-     * 已用流量占总流量的百分比
-     */
-    public function trafficUsagePercent(): float
-    {
-        return $this->transfer_enable === 0 ?
-            0
-            :
-            round(($this->u + $this->d) / $this->transfer_enable, 2) * 100;
     }
 
     /*
@@ -284,40 +220,23 @@ final class User extends Model
      */
     public function isAbleToCheckin(): bool
     {
-        return date('Ymd') !== date('Ymd', $this->last_check_in_time);
+        return date('Ymd') !== date('Ymd', $this->last_check_in_time) && ! $this->is_shadow_banned;
     }
 
     /**
      * 删除用户的订阅链接
      */
-    public function cleanLink(): void
+    public function removeLink(): void
     {
-        Link::where('userid', $this->id)->delete();
+        (new Link())->where('userid', $this->id)->delete();
     }
 
     /**
      * 删除用户的邀请码
      */
-    public function clearInviteCodes(): void
+    public function removeInvite(): void
     {
-        InviteCode::where('user_id', $this->id)->delete();
-    }
-
-    /**
-     * 累计充值金额
-     */
-    public function getTopUp(): float
-    {
-        $number = Paylist::where('userid', $this->id)->sum('number');
-        return is_null($number) ? 0.00 : round((float) $number, 2);
-    }
-
-    /**
-     * 在线 IP 个数
-     */
-    public function onlineIpCount(): int
-    {
-        return OnlineLog::where('user_id', $this->id)->where('last_time', '>', time() - 90)->count();
+        (new InviteCode())->where('user_id', $this->id)->delete();
     }
 
     /**
@@ -327,49 +246,22 @@ final class User extends Model
     {
         $uid = $this->id;
 
-        DetectBanLog::where('user_id', $uid)->delete();
-        DetectLog::where('user_id', $uid)->delete();
-        InviteCode::where('user_id', $uid)->delete();
-        OnlineLog::where('user_id', $uid)->delete();
-        Link::where('userid', $uid)->delete();
-        LoginIp::where('userid', $uid)->delete();
-        SubscribeLog::where('user_id', $uid)->delete();
+        (new DetectBanLog())->where('user_id', $uid)->delete();
+        (new DetectLog())->where('user_id', $uid)->delete();
+        (new InviteCode())->where('user_id', $uid)->delete();
+        (new OnlineLog())->where('user_id', $uid)->delete();
+        (new Link())->where('userid', $uid)->delete();
+        (new LoginIp())->where('userid', $uid)->delete();
+        (new SubscribeLog())->where('user_id', $uid)->delete();
 
         return $this->delete();
-    }
-
-    /**
-     * 签到
-     */
-    public function checkin(): array
-    {
-        $return = [
-            'ok' => true,
-        ];
-
-        if (! $this->isAbleToCheckin() || $this->is_shadow_banned) {
-            $return['ok'] = false;
-            $return['msg'] = '签到失败，请稍后再试';
-        } else {
-            try {
-                $traffic = random_int((int) $_ENV['checkinMin'], (int) $_ENV['checkinMax']);
-            } catch (Exception $e) {
-                $traffic = 0;
-            }
-
-            $this->transfer_enable += Tools::toMB($traffic);
-            $this->last_check_in_time = time();
-            $this->save();
-            $return['msg'] = '获得了 ' . $traffic . 'MB 流量.';
-        }
-
-        return $return;
     }
 
     public function unbindIM(): bool
     {
         $this->im_type = 0;
         $this->im_value = '';
+
         return $this->save();
     }
 

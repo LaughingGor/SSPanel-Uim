@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Subscribe;
 
 use App\Services\Subscribe;
+use App\Utils\Tools;
 use function array_filter;
 use function array_merge;
 use function json_decode;
@@ -16,7 +17,7 @@ final class SingBox extends Base
     {
         $nodes = [];
         $singbox_config = $_ENV['SingBox_Config'];
-        $nodes_raw = Subscribe::getSubNodes($user);
+        $nodes_raw = Subscribe::getUserNodes($user);
 
         foreach ($nodes_raw as $node_raw) {
             $node_custom_config = json_decode($node_raw->custom_config, true);
@@ -34,15 +35,16 @@ final class SingBox extends Base
 
                     break;
                 case 1:
-                    $ss_2022_port = $node_custom_config['offset_port_user'] ?? ($node_custom_config['offset_port_node'] ?? 443);
+                    $ss_2022_port = $node_custom_config['offset_port_user'] ??
+                        ($node_custom_config['offset_port_node'] ?? 443);
                     $method = $node_custom_config['method'] ?? '2022-blake3-aes-128-gcm';
+                    $user_pk = Tools::genSs2022UserPk($user->passwd, $method);
 
-                    $pk_len = match ($method) {
-                        '2022-blake3-aes-128-gcm' => 16,
-                        default => 32,
-                    };
+                    if (! $user_pk) {
+                        $node = [];
+                        break;
+                    }
 
-                    $user_pk = $user->getSs2022Pk($pk_len);
                     $server_key = $node_custom_config['server_key'] ?? '';
 
                     $node = [
@@ -56,7 +58,8 @@ final class SingBox extends Base
 
                     break;
                 case 2:
-                    $tuic_port = $node_custom_config['offset_port_user'] ?? ($node_custom_config['offset_port_node'] ?? 443);
+                    $tuic_port = $node_custom_config['offset_port_user'] ??
+                        ($node_custom_config['offset_port_node'] ?? 443);
                     $host = $node_custom_config['host'] ?? '';
                     $allow_insecure = $node_custom_config['allow_insecure'] ?? false;
                     $congestion_control = $node_custom_config['congestion_control'] ?? 'bbr';
@@ -81,13 +84,15 @@ final class SingBox extends Base
 
                     break;
                 case 11:
-                    $v2_port = $node_custom_config['offset_port_user'] ?? ($node_custom_config['offset_port_node'] ?? 443);
+                    $v2_port = $node_custom_config['offset_port_user'] ??
+                        ($node_custom_config['offset_port_node'] ?? 443);
                     $transport = ($node_custom_config['network'] ?? '') === 'tcp' ? '' : $node_custom_config['network'];
                     $host = $node_custom_config['header']['request']['headers']['Host'][0] ??
                         $node_custom_config['host'] ?? '';
                     $path = $node_custom_config['header']['request']['path'][0] ?? $node_custom_config['path'] ?? '';
                     $headers = $node_custom_config['header']['request']['headers'] ?? [];
                     $service_name = $node_custom_config['servicename'] ?? '';
+                    $utls = $node_custom_config['utls'] ?? false;
 
                     $node = [
                         'type' => 'vmess',
@@ -98,13 +103,23 @@ final class SingBox extends Base
                         'security' => 'auto',
                         'alter_id' => 0,
                         'tls' => [
+                            'enabled' => true,
                             'server_name' => $host,
+                            'utls' => [
+                                'enabled' => $utls,
+                                'fingerprint' => 'chrome',
+                            ],
                         ],
+                        'packet_encoding' => 'xudp',
+                        'global_padding' => true,
+                        'authenticated_length' => true,
                         'transport' => [
                             'type' => $transport,
                             'path' => $path,
                             'headers' => $headers,
                             'service_name' => $service_name,
+                            'max_early_data' => 2048,
+                            'early_data_header_name' => 'Sec-WebSocket-Protocol',
                         ],
                     ];
 
@@ -113,7 +128,8 @@ final class SingBox extends Base
 
                     break;
                 case 14:
-                    $trojan_port = $node_custom_config['offset_port_user'] ?? ($node_custom_config['offset_port_node'] ?? 443);
+                    $trojan_port = $node_custom_config['offset_port_user'] ??
+                        ($node_custom_config['offset_port_node'] ?? 443);
                     $host = $node_custom_config['host'] ?? '';
                     $allow_insecure = $node_custom_config['allow_insecure'] ?? '0';
                     $transport = $node_custom_config['network'] ?? '';
@@ -155,10 +171,11 @@ final class SingBox extends Base
 
             $nodes[] = $node;
             $singbox_config['outbounds'][0]['outbounds'][] = $node_raw->name;
+            $singbox_config['outbounds'][1]['outbounds'][] = $node_raw->name;
         }
 
         $singbox_config['outbounds'] = array_merge($singbox_config['outbounds'], $nodes);
-        $singbox_config['experimental']['clash_api']['cache_id'] = $_ENV['appName'];
+        $singbox_config['experimental']['cache_file']['cache_id'] = $_ENV['appName'];
 
         return json_encode($singbox_config);
     }

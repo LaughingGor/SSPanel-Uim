@@ -5,18 +5,19 @@ declare(strict_types=1);
 namespace App\Utils;
 
 use App\Models\Config;
-use App\Models\Link;
 use App\Models\User;
 use App\Services\GeoIP2;
 use GeoIp2\Exception\AddressNotFoundException;
 use MaxMind\Db\Reader\InvalidDatabaseException;
+use Random\RandomException;
 use function array_diff;
 use function array_flip;
 use function base64_encode;
 use function bin2hex;
+use function ceil;
 use function closedir;
+use function count;
 use function date;
-use function explode;
 use function filter_var;
 use function floor;
 use function hash;
@@ -24,10 +25,11 @@ use function in_array;
 use function is_numeric;
 use function json_decode;
 use function log;
+use function max;
 use function mb_strcut;
 use function opendir;
-use function openssl_random_pseudo_bytes;
 use function pow;
+use function random_bytes;
 use function range;
 use function readdir;
 use function round;
@@ -45,55 +47,46 @@ final class Tools
 {
     /**
      * 查询IP归属
-     *
-     * @param string $ip
-     *
-     * @return string
-     *
-     * @throws InvalidDatabaseException
      */
     public static function getIpLocation(string $ip): string
     {
-        $err_msg = '';
+        $data = 'GeoIP2 服务未配置';
         $city = null;
         $country = null;
 
-        if ($_ENV['maxmind_license_key'] === '') {
-            $err_msg = 'GeoIP2 服务未配置';
-        } else {
-            $geoip = new GeoIP2();
+        if ($_ENV['maxmind_license_key'] !== '') {
+            try {
+                $geoip = new GeoIP2();
+            } catch (InvalidDatabaseException) {
+                return $data;
+            }
 
             try {
                 $city = $geoip->getCity($ip);
-            } catch (AddressNotFoundException $e) {
+            } catch (AddressNotFoundException|InvalidDatabaseException) {
                 $city = '未知城市';
             }
 
             try {
                 $country = $geoip->getCountry($ip);
-            } catch (AddressNotFoundException $e) {
+            } catch (AddressNotFoundException|InvalidDatabaseException) {
                 $country = '未知国家';
             }
         }
 
-        if ($city !== null) {
-            return $city . ', ' . $country;
-        }
-
         if ($country !== null) {
-            return $country;
+            $data = $country;
         }
 
-        return $err_msg;
+        if ($city !== null) {
+            $data = $city . ', ' . $country;
+        }
+
+        return $data;
     }
 
     /**
      * 根据流量值自动转换单位输出
-     *
-     * @param $size
-     * @param int $precision
-     *
-     * @return string
      */
     public static function autoBytes($size, int $precision = 2): string
     {
@@ -113,10 +106,6 @@ final class Tools
 
     /**
      * 根据含单位的流量值转换 B 输出
-     *
-     * @param $size
-     *
-     * @return int|null
      */
     public static function autoBytesR($size): ?int
     {
@@ -137,11 +126,6 @@ final class Tools
 
     /**
      * 根据速率值自动转换单位输出
-     *
-     * @param $size
-     * @param int $precision
-     *
-     * @return string
      */
     public static function autoMbps($size, int $precision = 2): string
     {
@@ -159,79 +143,71 @@ final class Tools
         return round(pow(1000, $base - floor($base)), $precision) . $units[floor($base)];
     }
 
-    //虽然名字是toMB，但是实际上功能是from MB to B
-
     /**
-     * @param $traffic
-     *
-     * @return int
+     * 虽然名字是toMB，但是实际上功能是from MB to B
      */
     public static function toMB($traffic): int
     {
         return (int) $traffic * 1048576;
     }
 
-    //虽然名字是toGB，但是实际上功能是from GB to B
-
     /**
-     * @param $traffic
-     *
-     * @return int
+     * 虽然名字是toGB，但是实际上功能是from GB to B
      */
     public static function toGB($traffic): int
     {
         return (int) $traffic * 1073741824;
     }
 
-    /**
-     * @param $traffic
-     *
-     * @return float
-     */
-    public static function flowToGB($traffic): float
-    {
-        return round($traffic / 1073741824, 2);
-    }
-
-    /**
-     * @param $traffic
-     *
-     * @return float
-     */
     public static function flowToMB($traffic): float
     {
         return round($traffic / 1048576, 2);
     }
 
-    public static function genSubToken(): string
+    public static function flowToGB($traffic): float
     {
-        $token = self::genRandomChar($_ENV['sub_token_len']);
-        $is_token_used = Link::where('token', $token)->first();
-
-        if ($is_token_used === null) {
-            return $token;
-        }
-
-        return "couldn't alloc token";
+        return round($traffic / 1073741824, 2);
     }
 
-    public static function genRandomChar(int $length = 8): string
+    public static function genSubToken(): string
+    {
+        return self::genRandomChar(max($_ENV['sub_token_len'], 8));
+    }
+
+    public static function genRandomChar(int $length = 8): string|false
     {
         if ($length <= 2) {
             $length = 2;
         }
 
-        return bin2hex(openssl_random_pseudo_bytes($length / 2));
+        try {
+            $randomString = bin2hex(random_bytes((int) ceil($length / 2)));
+        } catch (RandomException) {
+            return false;
+        }
+
+        return substr($randomString, 0, $length);
     }
 
-    public static function genSs2022UserPk($passwd, $len): string
+    public static function genSs2022UserPk(string $passwd, string $method): string|false
     {
-        $passwd_hash = hash('sha256', $passwd);
+        $ss2022_methods = [
+            '2022-blake3-aes-128-gcm',
+            '2022-blake3-aes-256-gcm',
+            '2022-blake3-chacha8-poly1305',
+            '2022-blake3-chacha12-poly1305',
+            '2022-blake3-chacha20-poly1305',
+        ];
 
-        $pk = match ($len) {
-            16 => mb_strcut($passwd_hash, 0, 16),
-            32 => mb_strcut($passwd_hash, 0, 32),
-            default => $passwd_hash,
+        if (! in_array($method, $ss2022_methods)) {
+            return false;
+        }
+
+        $passwd_hash = hash('sha3-256', $passwd);
+
+        $pk = match ($method) {
+            '2022-blake3-aes-128-gcm' => mb_strcut($passwd_hash, 0, 16),
+            default => mb_strcut($passwd_hash, 0, 32),
         };
 
         return base64_encode($pk);
@@ -244,16 +220,21 @@ final class Tools
 
     public static function getSsPort(): int
     {
-        if (Config::obtain('min_port') > 65535
-            || Config::obtain('min_port') <= 0
-            || Config::obtain('max_port') > 65535
-            || Config::obtain('max_port') <= 0
+        $max_port = Config::obtain('max_port');
+        $min_port = Config::obtain('min_port');
+
+        if ($min_port >= 65535
+            || $min_port <= 0
+            || $max_port > 65535
+            || $max_port <= 0
+            || $min_port > $max_port
+            || count(User::all()) >= $max_port - $min_port + 1
         ) {
             return 0;
         }
 
-        $det = User::pluck('port')->toArray();
-        $port = array_diff(range(Config::obtain('min_port'), Config::obtain('max_port')), $det);
+        $det = (new User())->pluck('port')->toArray();
+        $port = array_diff(range($min_port, $max_port), $det);
         shuffle($port);
 
         return $port[0];
@@ -285,12 +266,6 @@ final class Tools
         return $dirArray;
     }
 
-    /**
-     * @param $type
-     * @param $str
-     *
-     * @return bool
-     */
     public static function isParamValidate($type, $str): bool
     {
         $list = self::getSsMethod($type);
@@ -321,54 +296,6 @@ final class Tools
         };
     }
 
-    /**
-     * @param $email
-     *
-     * @return array
-     */
-    public static function isEmailLegal($email): array
-    {
-        $res = [];
-        $res['ret'] = 0;
-
-        if (! self::isEmail($email)) {
-            $res['msg'] = '邮箱不规范';
-            return $res;
-        }
-
-        $mail_suffix = explode('@', $email)[1];
-        $mail_filter_list = $_ENV['mail_filter_list'];
-
-        switch ($_ENV['mail_filter']) {
-            case 1:
-                // 白名单
-                if (in_array($mail_suffix, $mail_filter_list)) {
-                    $res['ret'] = 1;
-                } else {
-                    $res['msg'] = '邮箱域名 ' . $mail_suffix . ' 无效，请更换邮件地址';
-                }
-
-                return $res;
-            case 2:
-                // 黑名单
-                if (! in_array($mail_suffix, $mail_filter_list)) {
-                    $res['ret'] = 1;
-                } else {
-                    $res['msg'] = '邮箱域名 ' . $mail_suffix . ' 无效，请更换邮件地址';
-                }
-
-                return $res;
-            default:
-                $res['ret'] = 1;
-                return $res;
-        }
-    }
-
-    /**
-     * @param $input
-     *
-     * @return bool
-     */
     public static function isEmail($input): bool
     {
         if (! filter_var($input, FILTER_VALIDATE_EMAIL)) {
@@ -378,11 +305,6 @@ final class Tools
         return true;
     }
 
-    /**
-     * @param $input
-     *
-     * @return bool
-     */
     public static function isIPv4($input): bool
     {
         if (! filter_var($input, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
@@ -392,11 +314,6 @@ final class Tools
         return true;
     }
 
-    /**
-     * @param $input
-     *
-     * @return bool
-     */
     public static function isIPv6($input): bool
     {
         if (! filter_var($input, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
@@ -406,11 +323,6 @@ final class Tools
         return true;
     }
 
-    /**
-     * @param $input
-     *
-     * @return bool
-     */
     public static function isInt($input): bool
     {
         if (! filter_var($input, FILTER_VALIDATE_INT)) {
@@ -422,10 +334,7 @@ final class Tools
 
     /**
      * 判断是否 JSON
-     *
-     * @param string $string
-     *
-     * @return bool
+     * TODO: Remove this function when PHP 8.3 is minimum requirement and replace it with native function
      */
     public static function isJson(string $string): bool
     {

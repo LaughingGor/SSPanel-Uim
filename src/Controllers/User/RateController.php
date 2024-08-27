@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace App\Controllers\User;
 
 use App\Controllers\BaseController;
-use App\Models\Node;
 use App\Services\DynamicRate;
+use App\Services\Subscribe;
 use App\Utils\ResponseHelper;
 use Exception;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response;
 use Slim\Http\ServerRequest;
-use voku\helper\AntiXSS;
 use function array_fill;
+use function count;
+use function json_decode;
 use function json_encode;
 
 final class RateController extends BaseController
@@ -21,43 +22,36 @@ final class RateController extends BaseController
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $user = $this->user;
-        $query = Node::query();
-        $query->where('type', 1);
-
-        if (! $user->is_admin) {
-            $group = ($user->node_group !== 0 ? [0, $user->node_group] : [0]);
-            $query->whereIn('node_group', $group);
-        }
-
-        $nodes = $query->orderBy('node_class')->orderBy('name')->get();
-        $all_node = [];
+        $nodes = Subscribe::getUserNodes($this->user);
+        $node_list = [];
 
         foreach ($nodes as $node) {
-            if ($node->node_bandwidth_limit !== 0 && $node->node_bandwidth_limit <= $node->node_bandwidth) {
-                continue;
-            }
+            $node_list[] = [
+                'id' => $node->id,
+                'name' => $node->name,
+            ];
+        }
 
-            $array_node = [];
-            $array_node['id'] = $node->id;
-            $array_node['name'] = $node->name;
-
-            $all_node[] = $array_node;
+        if (count($node_list) === 0) {
+            $node_list[] = [
+                'id' => 0,
+                'name' => '暂无节点',
+            ];
         }
 
         return $response->write(
             $this->view()
-                ->assign('nodes', $all_node)
+                ->assign('node_list', $node_list)
                 ->fetch('user/rate.tpl')
         );
     }
 
-    public function ajax(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function ajax(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $antiXss = new AntiXSS();
-        $node = Node::find($antiXss->xss_clean($request->getParam('node_id')));
+        $nodes = Subscribe::getUserNodes($this->user);
+        $node = $nodes->find($request->getParam('node_id'));
 
         if ($node === null) {
             return ResponseHelper::error($response, '节点不存在');
@@ -65,11 +59,18 @@ final class RateController extends BaseController
 
         if ($node->is_dynamic_rate) {
             $dynamic_rate_config = json_decode($node->dynamic_rate_config);
+
+            $dynamic_rate_type = match ($node->dynamic_rate_type) {
+                1 => 'linear',
+                default => 'logistic',
+            };
+
             $rates = DynamicRate::getFullDayRates(
                 (float) $dynamic_rate_config?->max_rate,
                 (int) $dynamic_rate_config?->max_rate_time,
                 (float) $dynamic_rate_config?->min_rate,
                 (int) $dynamic_rate_config?->min_rate_time,
+                $dynamic_rate_type
             );
         } else {
             $rates = array_fill(0, 24, $node->traffic_rate);

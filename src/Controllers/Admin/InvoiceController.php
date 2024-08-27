@@ -36,7 +36,7 @@ final class InvoiceController extends BaseController
     /**
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         return $response->write(
             $this->view()
@@ -48,14 +48,14 @@ final class InvoiceController extends BaseController
     /**
      * @throws Exception
      */
-    public function detail(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function detail(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $id = $args['id'];
-        $invoice = Invoice::find($id);
+        $invoice = (new Invoice())->find($id);
         $paylist = [];
 
         if ($invoice->status === 'paid_gateway') {
-            $paylist = Paylist::where('invoice_id', $invoice->id)->where('status', 1)->first();
+            $paylist = (new Paylist())->where('invoice_id', $invoice->id)->where('status', 1)->first();
         }
 
         $invoice->status_text = $invoice->status();
@@ -73,10 +73,10 @@ final class InvoiceController extends BaseController
         );
     }
 
-    public function markPaid(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function markPaid(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $invoice_id = $args['id'];
-        $invoice = Invoice::find($invoice_id);
+        $invoice = (new Invoice())->find($invoice_id);
 
         if (in_array($invoice->status, ['paid_gateway', 'paid_balance', 'paid_admin'])) {
             return $response->withJson([
@@ -85,7 +85,7 @@ final class InvoiceController extends BaseController
             ]);
         }
 
-        $order = Order::find($invoice->order_id);
+        $order = (new Order())->find($invoice->order_id);
 
         if ($order->status === 'cancelled') {
             return $response->withJson([
@@ -109,9 +109,9 @@ final class InvoiceController extends BaseController
         ]);
     }
 
-    public function ajax(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function ajax(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
-        $invoices = Invoice::orderBy('id', 'desc')->get();
+        $invoices = (new Invoice())->orderBy('id', 'desc')->get();
 
         foreach ($invoices as $invoice) {
             $invoice->op = '<a class="btn btn-blue" href="/admin/invoice/' . $invoice->id . '/view">查看</a>';

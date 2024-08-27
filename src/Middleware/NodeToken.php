@@ -33,8 +33,8 @@ final class NodeToken implements MiddlewareInterface
         $antiXss = new AntiXSS();
 
         if ($_ENV['enable_rate_limit'] &&
-            (! RateLimit::checkIPLimit($request->getServerParam('REMOTE_ADDR')) ||
-                ! RateLimit::checkWebAPILimit($antiXss->xss_clean($key)))
+            (! (new RateLimit())->checkRateLimit('webapi_ip', $request->getServerParam('REMOTE_ADDR')) ||
+                ! (new RateLimit())->checkRateLimit('webapi_key', $antiXss->xss_clean($key)))
         ) {
             return AppFactory::determineResponseFactory()->createResponse(401)->withJson([
                 'ret' => 0,
@@ -55,7 +55,9 @@ final class NodeToken implements MiddlewareInterface
         if ($_ENV['checkNodeIp']) {
             $ip = $request->getServerParam('REMOTE_ADDR');
 
-            if ($ip !== '127.0.0.1' && ! Node::where('node_ip', $ip)->exists()) {
+            if ($ip !== '127.0.0.1' && $ip !== '::1' && $ip !== '0:0:0:0:0:0:0:1' &&
+                ! (new Node())->where('ipv4', $ip)->orWhere('ipv6', $ip)->exists()
+            ) {
                 return AppFactory::determineResponseFactory()->createResponse(401)->withJson([
                     'ret' => 0,
                     'msg' => 'Invalid request IP.',

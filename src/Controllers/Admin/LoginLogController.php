@@ -20,8 +20,7 @@ final class LoginLogController extends BaseController
             'field' => [
                 'id' => '事件ID',
                 'userid' => '用户ID',
-                'user_name' => '用户名',
-                'ip' => 'IP',
+                'ip' => '登录IP',
                 'location' => 'IP归属地',
                 'datetime' => '时间',
                 'type' => '类型',
@@ -33,7 +32,7 @@ final class LoginLogController extends BaseController
      *
      * @throws Exception
      */
-    public function index(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function index(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         return $response->write(
             $this->view()
@@ -47,17 +46,37 @@ final class LoginLogController extends BaseController
      *
      * @throws InvalidDatabaseException
      */
-    public function ajax(ServerRequest $request, Response $response, array $args): Response|ResponseInterface
+    public function ajax(ServerRequest $request, Response $response, array $args): ResponseInterface
     {
         $length = $request->getParam('length');
         $page = $request->getParam('start') / $length + 1;
         $draw = $request->getParam('draw');
 
-        $logins = LoginIp::orderBy('id', 'desc')->paginate($length, '*', '', $page);
-        $total = LoginIp::count();
+        $login_log = LoginIp::query();
+
+        $search = $request->getParam('search')['value'];
+
+        if ($search !== '') {
+            $login_log->where('userid', '=', $search)
+                ->orWhere('ip', 'LIKE', "%{$search}%");
+        }
+
+        $order = $request->getParam('order')[0]['dir'];
+
+        if ($request->getParam('order')[0]['column'] !== '0') {
+            $order_by = $request->getParam('columns')[$request->getParam('order')[0]['column']]['data'];
+
+            $login_log->orderBy($order_by, $order)->orderBy('id', 'desc');
+        } else {
+            $login_log->orderBy('id', $order);
+        }
+
+        $filtered = $login_log->count();
+        $total = (new LoginIp())->count();
+
+        $logins = $login_log->paginate($length, '*', '', $page);
 
         foreach ($logins as $login) {
-            $login->user_name = $login->userName();
             $login->location = Tools::getIpLocation($login->ip);
             $login->datetime = Tools::toDateTime((int) $login->datetime);
             $login->type = $login->type();
@@ -66,7 +85,7 @@ final class LoginLogController extends BaseController
         return $response->withJson([
             'draw' => $draw,
             'recordsTotal' => $total,
-            'recordsFiltered' => $total,
+            'recordsFiltered' => $filtered,
             'logins' => $logins,
         ]);
     }

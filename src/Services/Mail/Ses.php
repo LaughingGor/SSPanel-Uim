@@ -17,17 +17,17 @@ final class Ses extends Base
 
         $ses = new SesClient([
             'credentials' => [
-                'key' => $configs['aws_access_key_id'],
-                'secret' => $configs['aws_secret_access_key'],
+                'key' => $configs['aws_ses_access_key_id'],
+                'secret' => $configs['aws_ses_access_key_secret'],
             ],
-            'region' => $configs['aws_region'],
+            'region' => $configs['aws_ses_region'],
             'version' => 'latest',
         ]);
 
         $this->ses = $ses;
     }
 
-    public function send($to, $subject, $text, $files): void
+    public function send($to, $subject, $body): void
     {
         $ses = $this->ses;
         $char_set = 'UTF-8';
@@ -41,11 +41,7 @@ final class Ses extends Base
                 'Body' => [
                     'Html' => [
                         'Charset' => $char_set,
-                        'Data' => $text,
-                    ],
-                    'Text' => [
-                        'Charset' => $char_set,
-                        'Data' => $text,
+                        'Data' => $body,
                     ],
                 ],
                 'Subject' => [
